@@ -101,35 +101,6 @@ If you change backend URL/port, update `API_BASE` in `frontend/src/App.tsx`.
 
 ---
 
-## Windows – Cara Upload ke GitHub (Manual)
-
-Misal kamu mau buat repo bernama `VulnBoard` di GitHub:
-
-1. Buat repo kosong di GitHub: `https://github.com/<username>/VulnBoard`
-2. Di Windows, buka **Terminal / PowerShell** dan jalankan:
-
-```bash
-cd path\to\VulnBoard
-
-git init
-git add .
-git commit -m "Initial commit – VulnBoard VAPT dashboard"
-git branch -M main
-git remote add origin https://github.com/<username>/VulnBoard.git
-git pull --rebase origin main  # jika remote sudah berisi sesuatu
-git push -u origin main
-```
-
-Jika dapat error `rejected, fetch first`, langkah aman:
-
-```bash
-git fetch origin
-git pull --rebase origin main
-git push -u origin main
-```
-
----
-
 ## Next Improvements (Ideas)
 
 - Authentication & multi‑tenant (per consultant / per company).
