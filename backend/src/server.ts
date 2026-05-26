@@ -1,11 +1,14 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import frameworksRouter from "./routes/frameworks";
 import templatesRouter from "./routes/templates";
 import reportsRouter from "./routes/reports";
 
 const app = express();
 
+app.use(helmet());
+app.disable("x-powered-by");
 app.use(cors());
 app.use(express.json());
 
