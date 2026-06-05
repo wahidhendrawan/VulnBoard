@@ -42,7 +42,7 @@ router.get('/:id/pdf', requireAuth, async (req: AuthRequest, res) => {
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>body{font-family:sans-serif;padding:40px;max-width:900px;margin:auto}</style>
-</head><body>${await marked(report.markdown)}</body></html>`;
+</head><body>${await marked.parse(report.markdown, { async: false })}</body></html>`;
 
   const browser = await puppeteer.launch({
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
