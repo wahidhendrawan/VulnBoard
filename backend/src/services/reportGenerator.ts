@@ -20,25 +20,23 @@ export type ReportRequest = {
   scope: string;
   testingType: string;
   methodology: string;
+  language?: string;
+  logoUrl?: string;
+  brandColor?: string;
   findings: FindingInput[];
 };
 
 export function generateReport(payload: ReportRequest): { markdown: string } {
   const template = templates.find(t => t.id === payload.templateId);
-  if (!template) {
-    throw new Error("Template not found");
-  }
+  if (!template) throw new Error("Template not found");
 
   const framework = frameworks.find(f => f.id === payload.frameworkId);
-  if (!framework) {
-    throw new Error("Framework not found");
-  }
+  if (!framework) throw new Error("Framework not found");
 
   const criticalCount = payload.findings.filter(f => f.severity === "Critical").length;
-  const highCount = payload.findings.filter(f => f.severity === "High").length;
-  const mediumCount = payload.findings.filter(f => f.severity === "Medium").length;
-  const lowCount = payload.findings.filter(f => f.severity === "Low").length;
-
+  const highCount     = payload.findings.filter(f => f.severity === "High").length;
+  const mediumCount   = payload.findings.filter(f => f.severity === "Medium").length;
+  const lowCount      = payload.findings.filter(f => f.severity === "Low").length;
   const findingsCount = payload.findings.length;
 
   let overallRisk: "Low" | "Medium" | "High" = "Low";
@@ -46,66 +44,67 @@ export function generateReport(payload: ReportRequest): { markdown: string } {
   else if (highCount > 0 || mediumCount > 2) overallRisk = "Medium";
 
   const date = payload.date || new Date().toISOString().split("T")[0];
+  const lang = payload.language || "en";
 
-  const findingsBlock = payload.findings
-    .map((f, idx) => {
-      const control = f.controlId
-        ? framework.controls.find(c => c.id === f.controlId)
-        : undefined;
-
-      return `
+  const findingsBlock = payload.findings.map((f, idx) => {
+    const control = f.controlId ? framework.controls.find(c => c.id === f.controlId) : undefined;
+    return `
 ### ${idx + 1}. ${f.title} (${f.severity})
 
-- Mapped Control: **${f.controlId ?? "-"}${control ? ` – ${control.title}` : ""}**
-- Description:  
+- **${lang === "id" ? "Kontrol Terkait" : "Mapped Control"}:** ${f.controlId ?? "-"}${control ? ` – ${control.title}` : ""}
+- **${lang === "id" ? "Deskripsi" : "Description"}:**  
   ${f.description ?? "-"}
-
-- Impact:  
+- **${lang === "id" ? "Dampak" : "Impact"}:**  
   ${f.impact ?? "-"}
-
-- Evidence:  
+- **${lang === "id" ? "Bukti" : "Evidence"}:**  
   ${f.evidence ?? "-"}
-
-- Recommendation:  
+- **${lang === "id" ? "Rekomendasi" : "Recommendation"}:**  
   ${f.recommendation ?? "-"}
 
----
-`;
-    })
-    .join("\n");
+---`;
+  }).join("\n");
 
-  const remediationRoadmap = `
-1. Prioritize remediation of Critical and High severity findings (fix window 7–14 days).
-2. Schedule patching and configuration hardening based on risk.
-3. Perform re-testing after remediation to validate the fixes.
-`;
+  const remediationRoadmap = lang === "id"
+    ? "1. Prioritaskan remediasi temuan Critical dan High (jendela perbaikan 7–14 hari).\n2. Jadwalkan patching dan hardening konfigurasi berdasarkan risiko.\n3. Lakukan pengujian ulang setelah remediasi."
+    : "1. Prioritize remediation of Critical and High severity findings (fix window 7–14 days).\n2. Schedule patching and configuration hardening based on risk.\n3. Perform re-testing after remediation to validate the fixes.";
 
-  let markdown = template.body;
+  const logoHeader = payload.logoUrl
+    ? `![Logo](${payload.logoUrl})\n\n`
+    : "";
+
+  const colorNote = payload.brandColor
+    ? `<!-- brand-color: ${payload.brandColor} -->\n`
+    : "";
+
+  let markdown = colorNote + logoHeader + template.body;
 
   const replacements: Record<string, string> = {
-    "{{projectName}}": payload.projectName,
-    "{{clientName}}": payload.clientName,
-    "{{date}}": date,
-    "{{frameworkName}}": framework.name,
+    "{{projectName}}":      payload.projectName,
+    "{{clientName}}":       payload.clientName,
+    "{{date}}":             date,
+    "{{frameworkName}}":    framework.name,
     "{{frameworkVersion}}": framework.version ?? "",
-    "{{scope}}": payload.scope,
-    "{{testingType}}": payload.testingType,
-    "{{methodology}}": payload.methodology,
-    "{{findingsCount}}": findingsCount.toString(),
-    "{{criticalCount}}": criticalCount.toString(),
-    "{{highCount}}": highCount.toString(),
-    "{{mediumCount}}": mediumCount.toString(),
-    "{{lowCount}}": lowCount.toString(),
-    "{{overallRisk}}": overallRisk,
+    "{{scope}}":            payload.scope,
+    "{{testingType}}":      payload.testingType,
+    "{{methodology}}":      payload.methodology,
+    "{{findingsCount}}":    findingsCount.toString(),
+    "{{criticalCount}}":    criticalCount.toString(),
+    "{{highCount}}":        highCount.toString(),
+    "{{mediumCount}}":      mediumCount.toString(),
+    "{{lowCount}}":         lowCount.toString(),
+    "{{overallRisk}}":      overallRisk,
     "{{remediationRoadmap}}": remediationRoadmap,
-    "{{executiveSummary}}": "Overall security posture and key risks are summarized here.",
-    "{{gapSummary}}": "Summary of non-compliant controls and remediation priority."
+    "{{executiveSummary}}": lang === "id"
+      ? "Postur keamanan secara keseluruhan dan risiko utama dirangkum di sini."
+      : "Overall security posture and key risks are summarized here.",
+    "{{gapSummary}}":       lang === "id"
+      ? "Ringkasan kontrol yang tidak patuh dan prioritas remediasi."
+      : "Summary of non-compliant controls and remediation priority.",
   };
 
   for (const [key, value] of Object.entries(replacements)) {
     markdown = markdown.split(key).join(value);
   }
-
   markdown = markdown.replace("{{findingsBlock}}", findingsBlock);
 
   return { markdown };

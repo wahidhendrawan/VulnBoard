@@ -1,0 +1,43 @@
+version: '3.9'
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vulnboard-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: file:/app/data/vulnboard.db
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-http://localhost:5173}
+      PORT: 4000
+    volumes:
+      - db_data:/app/data
+      - reports_data:/app/data/reports
+    ports:
+      - "4000:4000"
+    networks:
+      - vulnboard
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:4000/api}
+    container_name: vulnboard-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - vulnboard
+
+volumes:
+  db_data:
+  reports_data:
+
+networks:
+  vulnboard:
+    driver: bridge

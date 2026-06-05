@@ -1,112 +1,169 @@
-# VulnBoard – VAPT Report & Web Dashboard Management
+# VulnBoard – Professional VAPT Report & Engagement Dashboard
 
-VulnBoard is a lightweight web dashboard to manage VAPT (Vulnerability Assessment & Penetration Testing) engagements and generate **professional, white‑label reports** using standardized frameworks such as **OWASP Top 10** and **PCI DSS**.
+A self-hosted vulnerability management platform for VAPT consultants. Generate professional reports across multiple security frameworks, manage engagements, import scanner results, and export ready-to-deliver PDFs — all with authentication and persistent storage.
 
-## Core Value
+---
 
-This platform automates the heavy lifting:
+## Features
 
-1. **Instant Templating**  
-   Supports multiple security frameworks (e.g., OWASP Top 10, PCI DSS). Templates can be extended to NIST, ISO 27001, internal checklists, etc.
+| Category | Features |
+|---|---|
+| **Frameworks** | OWASP Top 10 2021 (all 10), NIST CSF 2.0, ISO 27001:2022, PCI DSS 4.0, SANS/CWE Top 25 |
+| **Templates** | Executive, Technical, Full Pentest — in English and Bahasa Indonesia |
+| **Authentication** | JWT + bcrypt — per-consultant workspaces |
+| **Persistence** | SQLite via Prisma — all engagements, findings, reports survive restarts |
+| **PDF Export** | One-click PDF via Puppeteer (Chromium headless) |
+| **Scanner Import** | Burp Suite XML, OWASP ZAP JSON, Nmap XML |
+| **Findings Library** | 40+ reusable finding templates (EN + ID), searchable by category |
+| **White-label** | Per-engagement logo URL + brand color |
+| **Multi-language** | Reports in English and Bahasa Indonesia |
+| **Docker** | Fully containerized with persistent volumes |
 
-2. **Consistent Quality**  
-   Zero template headaches: every report follows the same professional structure. Just plug in findings; VulnBoard handles headings, sections, and formatting.
+---
 
-3. **Focus on Value**  
-   Spend your time on remediation strategy and client communication, not on repetitive documentation or copy‑paste work.
+## Quick Start (Docker Compose)
+
+```bash
+cp .env.example .env
+# Edit .env — set a strong JWT_SECRET
+
+docker compose up -d
+```
+
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:4000
+
+**Seed demo data (optional):**
+```bash
+docker compose exec backend npm run db:seed
+# Demo login: demo@vulnboard.local / demo1234
+```
+
+---
+
+## Development Setup
+
+### Backend
+
+```bash
+cd backend
+cp .env.example .env
+npm install
+npx prisma migrate dev --name init
+npm run db:seed   # optional: seed finding templates + demo user
+npm run dev
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+---
+
+## Architecture
+
+```
+VulnBoard/
+├── docker-compose.yml       # Orchestration (backend + frontend + volumes)
+├── .env.example             # Environment variables template
+├── backend/
+│   ├── Dockerfile
+│   ├── prisma/
+│   │   └── schema.prisma    # User, Engagement, Finding, Report, FindingTemplate
+│   └── src/
+│       ├── server.ts        # Express app entry
+│       ├── db.ts            # Prisma singleton
+│       ├── schemas.ts       # Zod validation schemas
+│       ├── middleware/
+│       │   └── auth.ts      # JWT middleware
+│       ├── routes/
+│       │   ├── auth.ts      # POST /register, /login
+│       │   ├── engagements.ts
+│       │   ├── reports.ts   # Generate + persist report
+│       │   ├── pdf.ts       # GET /reports/:id/pdf
+│       │   ├── scanner.ts   # POST /burp, /zap, /nmap
+│       │   ├── findingTemplates.ts
+│       │   ├── frameworks.ts
+│       │   └── templates.ts
+│       ├── services/
+│       │   └── reportGenerator.ts  # Markdown generation engine
+│       ├── parsers/
+│       │   ├── burp.ts      # Burp Suite XML parser
+│       │   ├── zap.ts       # OWASP ZAP JSON parser
+│       │   └── nmap.ts      # Nmap XML parser
+│       ├── data/
+│       │   ├── frameworks.ts      # 5 frameworks, 67+ controls
+│       │   ├── templates.ts       # 8 report templates (EN + ID)
+│       │   └── findingTemplates.ts # 40 reusable finding templates
+│       └── seed.ts          # DB seeder
+└── frontend/
+    ├── Dockerfile           # Multi-stage: Vite build → nginx
+    ├── nginx.conf           # SPA routing + API proxy
+    └── src/
+        ├── api.ts           # Typed API client (axios + interceptors)
+        ├── AuthContext.tsx  # Auth state management
+        ├── ProtectedRoute.tsx
+        ├── App.tsx          # Router + layout
+        ├── pages/
+        │   ├── Login.tsx
+        │   └── Register.tsx
+        └── components/
+            └── SeverityBadge.tsx
+```
+
+---
+
+## API Reference
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `/api/auth/register` | No | Create account |
+| POST | `/api/auth/login` | No | Get JWT token |
+| GET | `/api/frameworks` | No | List frameworks |
+| GET | `/api/templates?frameworkId=` | No | List templates |
+| GET | `/api/engagements` | Yes | List user engagements |
+| POST | `/api/engagements` | Yes | Create engagement |
+| GET | `/api/engagements/:id` | Yes | Get engagement + findings |
+| DELETE | `/api/engagements/:id` | Yes | Delete engagement |
+| POST | `/api/reports` | Yes | Generate + persist report |
+| GET | `/api/reports/:id/pdf` | Yes | Download PDF |
+| POST | `/api/scanner/burp` | Yes | Import Burp XML |
+| POST | `/api/scanner/zap` | Yes | Import ZAP JSON |
+| POST | `/api/scanner/nmap` | Yes | Import Nmap XML |
+| GET | `/api/finding-templates` | No | List finding templates |
+
+---
+
+## Persistent Volumes
+
+| Volume | Path in container | Contents |
+|---|---|---|
+| `db_data` | `/app/data/vulnboard.db` | SQLite database |
+| `reports_data` | `/app/data/reports/` | Generated PDF files |
+
+---
+
+## Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `JWT_SECRET` | `change-me` | **Change in production** — JWT signing key |
+| `DATABASE_URL` | `file:/app/data/vulnboard.db` | Prisma SQLite path |
+| `ALLOWED_ORIGIN` | `http://localhost:5173` | CORS allowed origin |
+| `PORT` | `4000` | Backend port |
+| `VITE_API_BASE` | `http://localhost:4000/api` | Frontend API base (build-time) |
 
 ---
 
 ## Tech Stack
 
-- **Backend**: Node.js + Express + TypeScript
-- **Frontend**: React + Vite + TypeScript
-- **Report Format**: Markdown (can be converted to PDF/DOCX using external tools later)
-
----
-
-## Project Structure
-
-```text
-VulnBoard/
-  backend/       # REST API for frameworks, templates, report generation
-  frontend/      # React dashboard for engagement management & preview
-  README.md
-```
-
----
-
-## Backend Setup
-
-### 1. Install dependencies
-
-```bash
-cd backend
-npm install
-```
-
-### 2. Run in development mode
-
-```bash
-npm run dev
-```
-
-Backend default port: **http://localhost:4000**
-
----
-
-## Frontend Setup
-
-### 1. Install dependencies
-
-```bash
-cd frontend
-npm install
-```
-
-### 2. Run in development mode
-
-```bash
-npm run dev
-```
-
-Frontend will start (by default) on **http://localhost:5173** and talk to the backend at `http://localhost:4000/api`.
-
-If you change backend URL/port, update `API_BASE` in `frontend/src/App.tsx`.
-
----
-
-## Quick Usage
-
-1. Start **backend**.
-2. Start **frontend**.
-3. Open `http://localhost:5173` in your browser.
-4. Isi:
-   - Client Name
-   - Project Name
-   - Scope, Testing Type, Methodology
-5. Pilih **Framework** (misal: OWASP Top 10 2021).
-6. Pilih **Template** (Executive summary / PCI DSS report).
-7. Masukkan findings dengan format sederhana:
-
-   ```text
-   title|severity|controlId|description
-
-   Contoh:
-   SQL Injection on login|High|A03|SQL injection via ' OR 1=1--
-   Weak TLS configuration|Medium|A02|Outdated TLS version and weak ciphers
-   ```
-
-8. Klik **Generate Report** → preview akan muncul dalam format Markdown di sisi kanan, siap di‑export atau dikonversi ke PDF/DOCX.
-
----
-
-## Next Improvements (Ideas)
-
-- Authentication & multi‑tenant (per consultant / per company).
-- Integration with vulnerability scanners (Burp, ZAP, Nikto, Nmap) untuk auto‑import findings.
-- PDF / DOCX export langsung dari UI.
-- Multi‑language (EN/ID) dan multi‑brand (logo & header per client).
-- Role‑based access control untuk tim VAPT besar.
-
-Happy hacking with **VulnBoard**! 🚀
+- **Backend**: Node.js 20 · Express · TypeScript · Prisma ORM · SQLite
+- **Auth**: JWT (`jsonwebtoken`) + bcryptjs
+- **Validation**: Zod
+- **PDF**: Puppeteer (Chromium headless, pre-installed in Docker)
+- **Frontend**: React 18 · Vite · TypeScript · react-router-dom · axios
+- **Containerization**: Docker Compose · nginx (frontend) · node:20-slim (backend)

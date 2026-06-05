@@ -1,0 +1,14 @@
+# Snyk (https://snyk.io) policy file
+version: v1.25.0
+
+# Ignore transitive vulnerabilities that cannot be fixed without upstream updates.
+# Review and update this file when new versions of affected packages are released.
+ignore:
+  # Node-gyp supply chain compromise June 2026 - transitive dep, no fix available yet
+  # Track: https://snyk.io/node-gyp-supply-chain-compromise-june-2026
+  SNYK-CHAIN-2026-*:
+    - '*':
+        reason: Transitive dependency - waiting for upstream fix
+        expires: '2026-09-01T00:00:00.000Z'
+
+patch: {}

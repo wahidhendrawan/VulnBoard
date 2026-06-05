@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String       @id @default(cuid())
+  email       String       @unique
+  password    String
+  name        String
+  company     String?
+  createdAt   DateTime     @default(now())
+  engagements Engagement[]
+}
+
+model Engagement {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  clientName  String
+  projectName String
+  scope       String
+  testingType String
+  methodology String
+  frameworkId String
+  templateId  String
+  language    String    @default("en")
+  logoUrl     String?
+  brandColor  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  findings    Finding[]
+  reports     Report[]
+}
+
+model Finding {
+  id             String     @id @default(cuid())
+  engagementId   String
+  engagement     Engagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  title          String
+  severity       String
+  controlId      String?
+  description    String?
+  impact         String?
+  evidence       String?
+  recommendation String?
+  createdAt      DateTime   @default(now())
+}
+
+model FindingTemplate {
+  id             String   @id @default(cuid())
+  title          String
+  severity       String
+  controlId      String?
+  description    String
+  impact         String
+  recommendation String
+  category       String?
+  language       String   @default("en")
+  createdAt      DateTime @default(now())
+}
+
+model Report {
+  id           String     @id @default(cuid())
+  engagementId String
+  engagement   Engagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  markdown     String
+  pdfPath      String?
+  createdAt    DateTime   @default(now())
+}
