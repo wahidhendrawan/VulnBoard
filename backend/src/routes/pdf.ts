@@ -50,7 +50,17 @@ router.get('/:id/pdf', requireAuth, async (req: AuthRequest, res) => {
   });
   try {
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    // Block all external network requests during PDF generation to prevent SSRF
+    await page.setRequestInterception(true);
+    page.on('request', (interceptedReq) => {
+      const url = interceptedReq.url();
+      if (url.startsWith('data:') || url === 'about:blank') {
+        interceptedReq.continue();
+      } else {
+        interceptedReq.abort();
+      }
+    });
+    await page.setContent(html, { waitUntil: 'domcontentloaded' });
     await page.pdf({ path: pdfPath, format: 'A4', printBackground: true });
   } finally {
     await browser.close();
