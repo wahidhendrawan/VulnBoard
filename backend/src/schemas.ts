@@ -43,6 +43,7 @@ export const EngagementSchema = z.object({
   frameworkId: z.string().min(1),
   templateId: z.string().min(1),
   language: z.string().optional().default('en'),
-  logoUrl: z.string().url().optional(),
-  brandColor: z.string().optional(),
+  // Restrict logoUrl to https:// only, no internal IPs (SSRF prevention)
+  logoUrl: z.string().url().startsWith('https://').optional(),
+  brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
 });
