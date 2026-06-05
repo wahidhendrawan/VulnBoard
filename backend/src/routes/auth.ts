@@ -1,10 +1,25 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { db } from '../db';
 import { RegisterSchema, LoginSchema } from '../schemas';
 
 const router = Router();
+
+// Simple in-memory rate limiter for login (max 10 attempts per IP per 15 min)
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    loginAttempts.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
+    return true;
+  }
+  if (entry.count >= 10) return false;
+  entry.count++;
+  return true;
+}
 
 router.post('/register', async (req, res) => {
   const parsed = RegisterSchema.safeParse(req.body);
@@ -24,7 +39,12 @@ router.post('/register', async (req, res) => {
   res.status(201).json({ token });
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', async (req: Request, res: Response) => {
+  const ip = req.ip ?? 'unknown';
+  if (!checkRateLimit(ip)) {
+    res.status(429).json({ message: 'Too many login attempts. Try again later.' });
+    return;
+  }
   const parsed = LoginSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ message: parsed.error.errors[0].message });

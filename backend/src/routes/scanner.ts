@@ -53,19 +53,23 @@ function mapZapRisk(risk: number): FindingInput['severity'] {
   return 'Low';
 }
 
-function parseZapJson(data: any): FindingInput[] {
+function parseZapJson(data: unknown): FindingInput[] {
   const findings: FindingInput[] = [];
-  const sites = Array.isArray(data.site) ? data.site : data.site ? [data.site] : [];
+  const root = data as Record<string, unknown>;
+  const siteRaw = root.site;
+  const sites = Array.isArray(siteRaw) ? siteRaw : siteRaw ? [siteRaw] : [];
   for (const site of sites) {
-    const alerts = site.alerts ?? site.alert ?? [];
-    const alertArr = Array.isArray(alerts) ? alerts : [alerts];
+    const s = site as Record<string, unknown>;
+    const alertsRaw = s.alerts ?? s.alert ?? [];
+    const alertArr = Array.isArray(alertsRaw) ? alertsRaw : [alertsRaw];
     for (const alert of alertArr) {
+      const a = alert as Record<string, unknown>;
       findings.push({
-        title: alert.name ?? alert.alert ?? 'Untitled',
-        severity: mapZapRisk(Number(alert.riskcode ?? alert.risk ?? 1)),
-        description: alert.desc ?? alert.description,
-        recommendation: alert.solution,
-        evidence: alert.evidence,
+        title: String(a.name ?? a.alert ?? 'Untitled'),
+        severity: mapZapRisk(Number(a.riskcode ?? a.risk ?? 1)),
+        description: a.desc != null ? String(a.desc) : undefined,
+        recommendation: a.solution != null ? String(a.solution) : undefined,
+        evidence: a.evidence != null ? String(a.evidence) : undefined,
       });
     }
   }
@@ -110,7 +114,13 @@ router.post('/zap', upload.single('file'), (req, res) => {
     res.status(400).json({ message: 'No file uploaded' });
     return;
   }
-  const data = JSON.parse(req.file.buffer.toString('utf-8'));
+  let data: unknown;
+  try {
+    data = JSON.parse(req.file.buffer.toString('utf-8'));
+  } catch {
+    res.status(400).json({ message: 'Invalid JSON file' });
+    return;
+  }
   const findings = parseZapJson(data);
   res.json(findings);
 });
