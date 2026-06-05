@@ -35,7 +35,7 @@ router.post('/register', async (req, res) => {
   }
   const hashed = await bcrypt.hash(password, 12);
   const user = await db.user.create({ data: { email, password: hashed, name, company } });
-  const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET!, { expiresIn: '1d' });
+  const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET!, { expiresIn: '1d', algorithm: 'HS256' });
   res.status(201).json({ token });
 });
 
@@ -56,7 +56,7 @@ router.post('/login', async (req: Request, res: Response) => {
     res.status(401).json({ message: 'Invalid credentials' });
     return;
   }
-  const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET!, { expiresIn: '1d' });
+  const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET!, { expiresIn: '1d', algorithm: 'HS256' });
   res.json({ token });
 });
 
