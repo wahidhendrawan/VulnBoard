@@ -12,7 +12,7 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
     return;
   }
   try {
-    const payload = jwt.verify(header.slice(7), process.env.JWT_SECRET!) as { id: string; email: string };
+    const payload = jwt.verify(header.slice(7), process.env.JWT_SECRET!, { algorithms: ['HS256'] }) as { id: string; email: string };
     req.user = { id: payload.id, email: payload.email };
     next();
   } catch {
