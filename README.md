@@ -1,3 +1,5 @@
+[![CI](https://github.com/wahidhendrawan/VulnBoard/actions/workflows/ci.yml/badge.svg)](https://github.com/wahidhendrawan/VulnBoard/actions/workflows/ci.yml)
+
 # VulnBoard – Professional VAPT Report & Engagement Dashboard
 
 A self-hosted vulnerability management platform for VAPT consultants. Generate professional reports across multiple security frameworks, manage engagements, import scanner results, and export ready-to-deliver PDFs — all with authentication and persistent storage.
