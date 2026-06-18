@@ -2,6 +2,11 @@
 
 # VulnBoard – Professional VAPT Report & Engagement Dashboard
 
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL-3.0-blue.svg)](https://github.com/wahidhendrawan/VulnBoard/blob/main/LICENSE)
+[![Release](https://img.shields.io/badge/release-v1.0.0-green.svg)](https://github.com/wahidhendrawan/VulnBoard/releases)
+[![CI](https://github.com/wahidhendrawan/VulnBoard/actions/workflows/ci.yml/badge.svg)](https://github.com/wahidhendrawan/VulnBoard/actions)
+[![Pages](https://img.shields.io/badge/docs-🌐-orange.svg)](https://wahidhendrawan.github.io/VulnBoard/)
+
 A self-hosted vulnerability management platform for VAPT consultants. Generate professional reports across multiple security frameworks, manage engagements, import scanner results, and export ready-to-deliver PDFs — all with authentication and persistent storage.
 
 ---
