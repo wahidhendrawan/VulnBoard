@@ -1,11 +1,19 @@
 import { Router } from 'express';
 import multer from 'multer';
+import { XMLParser } from 'fast-xml-parser';
 import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 router.use(requireAuth);
+
+const xmlParser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: '@_',
+  allowBooleanAttributes: true,
+  parseTagValue: false,
+});
 
 type FindingInput = {
   title: string;
@@ -28,20 +36,21 @@ function mapBurpSeverity(s: string): FindingInput['severity'] {
 
 function parseBurpXml(xml: string): FindingInput[] {
   const findings: FindingInput[] = [];
-  const issueRegex = /<issue>([\s\S]*?)<\/issue>/gi;
-  let match: RegExpExecArray | null;
-  while ((match = issueRegex.exec(xml)) !== null) {
-    const block = match[1];
-    const name = block.match(/<name>([\s\S]*?)<\/name>/i)?.[1]?.trim() ?? 'Untitled';
-    const severity = block.match(/<severity>([\s\S]*?)<\/severity>/i)?.[1]?.trim() ?? 'Medium';
-    const detail = block.match(/<issueDetail>([\s\S]*?)<\/issueDetail>/i)?.[1]?.trim();
-    const remediation = block.match(/<remediationDetail>([\s\S]*?)<\/remediationDetail>/i)?.[1]?.trim();
-    findings.push({
-      title: name,
-      severity: mapBurpSeverity(severity),
-      description: detail,
-      recommendation: remediation,
-    });
+  try {
+    const data = xmlParser.parse(xml);
+    const issues = data?.issues?.issue ?? [];
+    const issueArr = Array.isArray(issues) ? issues : [issues];
+    for (const issue of issueArr) {
+      if (typeof issue !== 'object' || issue === null) continue;
+      findings.push({
+        title: String(issue.name ?? 'Untitled').trim(),
+        severity: mapBurpSeverity(String(issue.severity ?? 'Medium').trim()),
+        description: issue.issueDetail ? String(issue.issueDetail).trim() : undefined,
+        recommendation: issue.remediationDetail ? String(issue.remediationDetail).trim() : undefined,
+      });
+    }
+  } catch (err) {
+    console.error('Burp XML parsing error:', err);
   }
   return findings;
 }
@@ -78,23 +87,35 @@ function parseZapJson(data: unknown): FindingInput[] {
 
 function parseNmapXml(xml: string): FindingInput[] {
   const findings: FindingInput[] = [];
-  const hostRegex = /<host[\s\S]*?<\/host>/gi;
-  let hostMatch: RegExpExecArray | null;
-  while ((hostMatch = hostRegex.exec(xml)) !== null) {
-    const hostBlock = hostMatch[0];
-    const addr = hostBlock.match(/<address addr="([^"]+)"/)?.[1] ?? 'unknown';
-    const portRegex = /<port protocol="([^"]+)" portid="(\d+)"[\s\S]*?<state state="([^"]+)"[\s\S]*?<service name="([^"]*)"/gi;
-    let portMatch: RegExpExecArray | null;
-    while ((portMatch = portRegex.exec(hostBlock)) !== null) {
-      const [, protocol, port, state, service] = portMatch;
-      if (state === 'open') {
-        findings.push({
-          title: `Open port ${port}/${protocol} (${service}) on ${addr}`,
-          severity: 'Low',
-          description: `Port ${port}/${protocol} is open running ${service} on host ${addr}.`,
-        });
+  try {
+    const data = xmlParser.parse(xml);
+    const hosts = data?.nmaprun?.host ?? [];
+    const hostArr = Array.isArray(hosts) ? hosts : [hosts];
+    for (const host of hostArr) {
+      if (typeof host !== 'object' || host === null) continue;
+      const addrNode = host.address;
+      const addr = Array.isArray(addrNode)
+        ? addrNode.find((a: Record<string, string>) => a['@_addrtype'] === 'ipv4')?.['@_addr'] ?? addrNode[0]?.['@_addr'] ?? 'unknown'
+        : addrNode?.['@_addr'] ?? 'unknown';
+      const ports = host.ports?.port ?? [];
+      const portArr = Array.isArray(ports) ? ports : [ports];
+      for (const port of portArr) {
+        if (typeof port !== 'object' || port === null) continue;
+        const state = port.state?.['@_state'];
+        if (state === 'open') {
+          const protocol = port['@_protocol'] ?? 'tcp';
+          const portid = port['@_portid'] ?? '0';
+          const serviceName = port.service?.['@_name'] ?? 'unknown';
+          findings.push({
+            title: `Open port ${portid}/${protocol} (${serviceName}) on ${addr}`,
+            severity: 'Low',
+            description: `Port ${portid}/${protocol} is open running ${serviceName} on host ${addr}.`,
+          });
+        }
       }
     }
+  } catch (err) {
+    console.error('Nmap XML parsing error:', err);
   }
   return findings;
 }
