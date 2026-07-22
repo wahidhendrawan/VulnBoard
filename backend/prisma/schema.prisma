@@ -35,6 +35,8 @@ model Engagement {
   updatedAt   DateTime  @updatedAt
   findings    Finding[]
   reports     Report[]
+
+  @@index([userId, createdAt(sort: Desc)])
 }
 
 model Finding {
@@ -49,6 +51,8 @@ model Finding {
   evidence       String?
   recommendation String?
   createdAt      DateTime   @default(now())
+
+  @@index([engagementId])
 }
 
 model FindingTemplate {
@@ -62,6 +66,8 @@ model FindingTemplate {
   category       String?
   language       String   @default("en")
   createdAt      DateTime @default(now())
+
+  @@index([language, category])
 }
 
 model Report {
@@ -71,4 +77,6 @@ model Report {
   markdown     String
   pdfPath      String?
   createdAt    DateTime   @default(now())
+
+  @@index([engagementId])
 }
