@@ -1,10 +1,10 @@
-name: Deploy Frontend to Pages
+name: Deploy Landing Page to Pages
 
 on:
   push:
     branches: [main]
     paths:
-      - "frontend/**"
+      - "docs/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -18,32 +18,19 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Install
-        working-directory: frontend
-        run: npm ci
-      - name: Build
-        working-directory: frontend
-        env:
-          VITE_API_BASE: /api
-        run: npm run build
       - name: Setup Pages
         uses: actions/configure-pages@v5
-      - name: Upload artifact
+      - name: Upload landing page artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: frontend/dist
+          path: docs
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

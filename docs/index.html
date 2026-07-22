@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VulnBoard — Professional VAPT Report & Engagement Dashboard</title>
+<meta name="description" content="Self-hosted vulnerability management platform for VAPT consultants. Generate professional reports, manage engagements, import scanner results, export PDFs.">
+<style>
+  :root {
+    --bg: #0b1020; --card: #121a33; --text: #e6e9f5; --muted: #9aa4c4;
+    --accent: #6d8bff; --accent2: #22c55e; --border: #22305c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(180deg, #0b1020 0%, #0e1430 100%); color: var(--text);
+    line-height: 1.6;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 48px 24px 96px; }
+  header { text-align: center; margin-bottom: 48px; }
+  .badge {
+    display: inline-block; background: var(--card); border: 1px solid var(--border);
+    color: var(--accent); padding: 4px 12px; border-radius: 20px; font-size: 13px;
+    margin-bottom: 16px; font-weight: 600;
+  }
+  h1 { font-size: 2.4rem; margin: 0 0 12px; letter-spacing: -0.02em; }
+  .tagline { color: var(--muted); font-size: 1.15rem; max-width: 640px; margin: 0 auto; }
+  .cta-row { display: flex; gap: 12px; justify-content: center; margin-top: 28px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px;
+    border-radius: 10px; font-weight: 600; text-decoration: none; font-size: 0.95rem;
+    transition: transform 0.15s ease;
+  }
+  .btn:hover { transform: translateY(-2px); }
+  .btn-primary { background: var(--accent); color: #0b1020; }
+  .btn-secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+  .notice {
+    background: rgba(109, 139, 255, 0.08); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 20px; margin: 32px 0; font-size: 0.92rem; color: var(--muted);
+  }
+  .notice strong { color: var(--text); }
+  section { margin: 56px 0; }
+  h2 { font-size: 1.5rem; margin-bottom: 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px 22px;
+  }
+  .card h3 { margin: 0 0 8px; font-size: 1rem; color: var(--accent); }
+  .card p { margin: 0; font-size: 0.92rem; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; }
+  code {
+    background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px;
+    font-size: 0.85em; font-family: 'SF Mono', Consolas, monospace;
+  }
+  pre {
+    background: #080c1a; border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; overflow-x: auto; font-size: 0.85rem;
+  }
+  .stack-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .tag {
+    background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+    padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; color: var(--muted);
+  }
+  footer { text-align: center; color: var(--muted); font-size: 0.85rem; margin-top: 64px; }
+  footer a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="badge">🛡️ Security Tooling</span>
+    <h1>VulnBoard</h1>
+    <p class="tagline">A self-hosted vulnerability management platform for VAPT consultants — generate professional pentest reports, manage engagements, and import scanner results across multiple security frameworks.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/wahidhendrawan/VulnBoard">View on GitHub</a>
+      <a class="btn btn-secondary" href="https://github.com/wahidhendrawan/VulnBoard#quick-start-docker-compose">Quick Start</a>
+    </div>
+  </header>
+
+  <div class="notice">
+    <strong>ℹ️ This is a documentation page, not a live demo.</strong> VulnBoard requires a backend (Express + Prisma + SQLite) with authentication and persistent storage, so it can't run as a static site. Run it locally with Docker in under a minute — see below.
+  </div>
+
+  <section>
+    <h2>Features</h2>
+    <div class="grid">
+      <div class="card"><h3>Multi-Framework Reports</h3><p>OWASP Top 10 2021, NIST CSF 2.0, ISO 27001:2022, PCI DSS 4.0, SANS/CWE Top 25.</p></div>
+      <div class="card"><h3>Scanner Import</h3><p>Import findings directly from Burp Suite XML, OWASP ZAP JSON, and Nmap XML.</p></div>
+      <div class="card"><h3>PDF Export</h3><p>One-click professional PDF reports via headless Chromium (Puppeteer).</p></div>
+      <div class="card"><h3>Findings Library</h3><p>40+ reusable finding templates in English and Bahasa Indonesia.</p></div>
+      <div class="card"><h3>White-label Reports</h3><p>Per-engagement logo and brand color for client-ready deliverables.</p></div>
+      <div class="card"><h3>Authenticated Workspaces</h3><p>JWT + bcrypt auth with per-consultant persistent engagements.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Run it locally</h2>
+    <pre><code>git clone https://github.com/wahidhendrawan/VulnBoard.git
+cd VulnBoard
+cp .env.example .env   # set a strong JWT_SECRET
+docker compose up -d</code></pre>
+    <p style="color:var(--muted); font-size:0.9rem;">Frontend on <code>:5173</code>, backend API on <code>:4000</code>. Seed demo data with <code>docker compose exec backend npm run db:seed</code>.</p>
+  </section>
+
+  <section>
+    <h2>Tech Stack</h2>
+    <div class="stack-tags">
+      <span class="tag">Node.js 20</span><span class="tag">Express</span><span class="tag">TypeScript</span>
+      <span class="tag">Prisma ORM</span><span class="tag">SQLite</span><span class="tag">JWT + bcrypt</span>
+      <span class="tag">Zod</span><span class="tag">Puppeteer</span><span class="tag">React 18</span>
+      <span class="tag">Vite</span><span class="tag">Docker Compose</span>
+    </div>
+  </section>
+
+  <footer>
+    Built by <a href="https://github.com/wahidhendrawan">Wahid Hendrawan</a> · GPL-3.0 Licensed · <a href="https://github.com/wahidhendrawan/VulnBoard">Source on GitHub</a>
+  </footer>
+</div>
+</body>
+</html>
