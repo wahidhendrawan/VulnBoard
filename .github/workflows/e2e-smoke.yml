@@ -1,0 +1,111 @@
+name: E2E Smoke Test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "docker-compose.yml"
+      - ".github/workflows/e2e-smoke.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "docker-compose.yml"
+      - ".github/workflows/e2e-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Docker Compose smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare environment
+        run: |
+          if [ -f .env.example ]; then
+            cp .env.example .env
+          fi
+          echo "JWT_SECRET=ci-smoke-test-secret-not-for-prod" >> .env
+
+      - name: Build and start stack
+        run: docker compose up -d --build
+
+      - name: Wait for backend
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:4000/ >/dev/null 2>&1; then
+              echo "Backend ready after ${i}s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Backend did not respond within 120s"
+          docker compose logs backend
+          exit 1
+
+      - name: Wait for frontend
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:5173/ >/dev/null 2>&1; then
+              echo "Frontend ready after ${i}s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Frontend did not respond within 60s"
+          docker compose logs frontend
+          exit 1
+
+      - name: Smoke check - unauthenticated endpoints
+        run: |
+          echo "=== Backend root ==="
+          curl -fsS http://localhost:4000/ | tee /dev/stderr | grep -q "VulnBoard API"
+          echo ""
+          echo "=== Frameworks endpoint (unauthenticated) ==="
+          curl -fsS http://localhost:4000/api/frameworks | head -c 200
+          echo ""
+
+      - name: Smoke check - authentication flow
+        run: |
+          echo "=== Register test user ==="
+          RESP=$(curl -fsS -X POST http://localhost:4000/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{"email":"smoke@test.local","password":"smoke123456","name":"Smoke Test"}')
+          echo "$RESP" | head -c 200
+          echo ""
+          echo "=== Login test user ==="
+          TOKEN=$(curl -fsS -X POST http://localhost:4000/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"email":"smoke@test.local","password":"smoke123456"}' \
+            | grep -oE '"token":"[^"]+"' | cut -d'"' -f4)
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Login did not return token"
+            exit 1
+          fi
+          echo "Token acquired (${#TOKEN} chars)"
+          echo ""
+          echo "=== Authenticated engagements list ==="
+          curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:4000/api/engagements | head -c 200
+          echo ""
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          echo "=== Compose services ==="
+          docker compose ps
+          echo "=== Backend logs ==="
+          docker compose logs backend | tail -100
+          echo "=== Frontend logs ==="
+          docker compose logs frontend | tail -50
+
+      - name: Teardown
+        if: always()
+        run: docker compose down -v
