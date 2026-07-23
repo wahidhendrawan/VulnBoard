@@ -156,4 +156,106 @@ router.post('/nmap', upload.single('file'), (req, res) => {
   res.json(findings);
 });
 
+function parseNessusV2(data: Record<string, unknown>): FindingInput[] {
+  const findings: FindingInput[] = [];
+  const report = data?.Report;
+  if (!report) return findings;
+  const hosts = Array.isArray(report.ReportHost) ? report.ReportHost : report.ReportHost ? [report.ReportHost] : [];
+  for (const host of hosts) {
+    const h = host as Record<string, unknown>;
+    const items = Array.isArray(h.ReportItem) ? h.ReportItem : h.ReportItem ? [h.ReportItem] : [];
+    for (const item of items) {
+      const i = item as Record<string, unknown>;
+      const risk = String(i?.risk_factor ?? 'None');
+      let severity: FindingInput['severity'] = 'Low';
+      if (risk.toLowerCase() === 'critical') severity = 'Critical';
+      else if (risk.toLowerCase() === 'high') severity = 'High';
+      else if (risk.toLowerCase() === 'medium') severity = 'Medium';
+      findings.push({
+        title: String(i?.plugin_name ?? 'Untitled'),
+        severity,
+        description: String(i?.description ?? '').trim() || undefined,
+        recommendation: String(i?.solution ?? '').trim() || undefined,
+        evidence: i?.plugin_output ? String(i.plugin_output).trim() : undefined,
+      });
+    }
+  }
+  return findings;
+}
+
+router.post('/nessus', upload.single('file'), (req, res) => {
+  if (!req.file) {
+    res.status(400).json({ message: 'No file uploaded' });
+    return;
+  }
+  let data: unknown;
+  try {
+    const text = req.file.buffer.toString('utf-8');
+    data = text.trim().startsWith('<') ? xmlParser.parse(text) : JSON.parse(text);
+  } catch {
+    res.status(400).json({ message: 'Invalid Nessus file (expected .nessus XML or .json)' });
+    return;
+  }
+  const findings = parseNessusV2(data as Record<string, unknown>);
+  res.json(findings);
+});
+
+function parseNucleiJson(raw: unknown): FindingInput[] {
+  const findings: FindingInput[] = [];
+  const lines = Array.isArray(raw) ? raw : typeof raw === 'string' ? raw.trim().split('\n') : [];
+  for (const line of lines) {
+    if (typeof line !== 'string') {
+      const entry = line as Record<string, unknown>;
+      if (entry?.info) {
+        const info = entry.info as Record<string, unknown>;
+        const sev = String(info?.severity ?? 'info').toLowerCase();
+        let severity: FindingInput['severity'] = 'Low';
+        if (sev === 'critical') severity = 'Critical';
+        else if (sev === 'high') severity = 'High';
+        else if (sev === 'medium') severity = 'Medium';
+        findings.push({
+          title: String(info?.name ?? entry?.template ?? 'Untitled'),
+          severity,
+          description: String(info?.description ?? '').trim() || undefined,
+          evidence: entry?.matched_at ? String(entry.matched_at) : entry?.host ? String(entry.host) : undefined,
+        });
+      }
+      continue;
+    }
+    try {
+      const entry = JSON.parse(line as string) as Record<string, unknown>;
+      const info = entry.info as Record<string, unknown> | undefined;
+      if (!info) continue;
+      const sev = String(info?.severity ?? 'info').toLowerCase();
+      let severity: FindingInput['severity'] = 'Low';
+      if (sev === 'critical') severity = 'Critical';
+      else if (sev === 'high') severity = 'High';
+      else if (sev === 'medium') severity = 'Medium';
+      findings.push({
+        title: String(info?.name ?? entry?.template_id ?? 'Untitled'),
+        severity,
+        description: String(info?.description ?? '').trim() || undefined,
+        evidence: entry?.matched_at ? String(entry.matched_at) : entry?.host ? String(entry.host) : undefined,
+      });
+    } catch { /* skip unparseable lines */ }
+  }
+  return findings;
+}
+
+router.post('/nuclei', upload.single('file'), (req, res) => {
+  if (!req.file) {
+    res.status(400).json({ message: 'No file uploaded' });
+    return;
+  }
+  let data: unknown;
+  try {
+    data = JSON.parse(req.file.buffer.toString('utf-8'));
+  } catch {
+    res.status(400).json({ message: 'Invalid JSON file' });
+    return;
+  }
+  const findings = parseNucleiJson(data);
+  res.json(findings);
+});
+
 export default router;
