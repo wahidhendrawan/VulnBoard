@@ -258,4 +258,50 @@ router.post('/nuclei', upload.single('file'), (req, res) => {
   res.json(findings);
 });
 
+function parseCsvText(text: string): FindingInput[] {
+  const findings: FindingInput[] = [];
+  const lines = text.split('\n');
+  if (lines.length < 2) return findings;
+
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+  const titleIdx = headers.findIndex(h => h === 'title' || h === 'finding' || h === 'name');
+  const sevIdx = headers.findIndex(h => h === 'severity' || h === 'risk' || h === 'level');
+  const descIdx = headers.findIndex(h => h === 'description' || h === 'desc');
+  const recIdx = headers.findIndex(h => h === 'recommendation' || h === 'remediation' || h === 'solution');
+  const evidIdx = headers.findIndex(h => h === 'evidence' || h === 'proof' || h === 'evidence');
+
+  if (titleIdx === -1) return findings;
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+    if (cols.length <= titleIdx || !cols[titleIdx]) continue;
+
+    let severity: FindingInput['severity'] = 'Low';
+    const rawSev = (sevIdx >= 0 && cols[sevIdx] ? cols[sevIdx].toLowerCase() : '');
+    if (rawSev === 'critical' || rawSev === '4') severity = 'Critical';
+    else if (rawSev === 'high' || rawSev === '3') severity = 'High';
+    else if (rawSev === 'medium' || rawSev === '2') severity = 'Medium';
+    else if (rawSev === 'low' || rawSev === '1') severity = 'Low';
+
+    findings.push({
+      title: cols[titleIdx],
+      severity,
+      description: descIdx >= 0 && cols[descIdx] ? cols[descIdx] : undefined,
+      recommendation: recIdx >= 0 && cols[recIdx] ? cols[recIdx] : undefined,
+      evidence: evidIdx >= 0 && cols[evidIdx] ? cols[evidIdx] : undefined,
+    });
+  }
+  return findings;
+}
+
+router.post('/csv', upload.single('file'), (req, res) => {
+  if (!req.file) {
+    res.status(400).json({ message: 'No file uploaded' });
+    return;
+  }
+  const text = req.file.buffer.toString('utf-8');
+  const findings = parseCsvText(text);
+  res.json(findings);
+});
+
 export default router;
