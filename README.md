@@ -20,7 +20,7 @@ A self-hosted vulnerability management platform for VAPT consultants. Generate p
 | **Authentication** | JWT + bcrypt — per-consultant workspaces |
 | **Persistence** | SQLite via Prisma — all engagements, findings, reports survive restarts |
 | **PDF Export** | One-click PDF via Puppeteer (Chromium headless) |
-| **Scanner Import** | Burp Suite XML, OWASP ZAP JSON, Nmap XML |
+| **Scanner Import** | Burp Suite XML, OWASP ZAP JSON, Nmap XML, Nessus (.nessus), Nuclei (JSON) |
 | **Findings Library** | 40+ reusable finding templates (EN + ID), searchable by category |
 | **White-label** | Per-engagement logo URL + brand color |
 | **Multi-language** | Reports in English and Bahasa Indonesia |
@@ -141,6 +141,8 @@ VulnBoard/
 | POST | `/api/scanner/burp` | Yes | Import Burp XML |
 | POST | `/api/scanner/zap` | Yes | Import ZAP JSON |
 | POST | `/api/scanner/nmap` | Yes | Import Nmap XML |
+| POST | `/api/scanner/nessus` | Yes | Import Nessus (.nessus) |
+| POST | `/api/scanner/nuclei` | Yes | Import Nuclei JSON |
 | GET | `/api/finding-templates` | No | List finding templates |
 
 ---
