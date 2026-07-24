@@ -258,6 +258,38 @@ router.post('/nuclei', upload.single('file'), (req, res) => {
   res.json(findings);
 });
 
+function parseQualysXml(xml: string): FindingInput[] {
+  const findings: FindingInput[] = [];
+  try {
+    const parser = new (require('fast-xml-parser').XMLParser)({ ignoreAttributes: false, attributeNamePrefix: '@_' });
+    const data = parser.parse(xml);
+    const hosts = data?.Report?.ReportHost ?? [];
+    const hostArr = Array.isArray(hosts) ? hosts : [hosts];
+    for (const host of hostArr) {
+      const items = host?.ReportItem ?? [];
+      const itemArr = Array.isArray(items) ? items : [items];
+      for (const item of itemArr) {
+        if (!item || typeof item !== 'object') continue;
+        const severityVal = Number(item?.severity ?? item?.['@_severity'] ?? 0);
+        let severity: FindingInput['severity'] = 'Low';
+        if (severityVal >= 5) severity = 'Critical';
+        else if (severityVal >= 4) severity = 'High';
+        else if (severityVal >= 3) severity = 'Medium';
+        findings.push({
+          title: String(item?.Title ?? item?.pluginName ?? item?.['@_pluginName'] ?? 'Untitled'),
+          severity,
+          description: String(item?.Description ?? '').trim() || undefined,
+          recommendation: String(item?.Solution ?? '').trim() || undefined,
+          evidence: item?.Diagnosis ? String(item.Diagnosis).trim() : undefined,
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Qualys XML parsing error:', err);
+  }
+  return findings;
+}
+
 function parseCsvText(text: string): FindingInput[] {
   const findings: FindingInput[] = [];
   const lines = text.split('\n');
@@ -300,8 +332,9 @@ router.post('/csv', upload.single('file'), (req, res) => {
     return;
   }
   const text = req.file.buffer.toString('utf-8');
-  const findings = parseCsvText(text);
+  const findings = text.includes('</Report>') || text.includes('ReportHost') ? parseQualysXml(text) : parseCsvText(text);
   res.json(findings);
+});
 });
 
 export default router;
