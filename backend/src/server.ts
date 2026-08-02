@@ -75,9 +75,11 @@ app.use('/api/reports', pdfRouter);
 app.use('/api/scanner', scannerRouter);
 app.use('/api/finding-templates', findingTemplatesRouter);
 
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+app.use((err: Error & { statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);
-  res.status(500).json({ message: 'Internal server error' });
+  const status = err.statusCode || 500;
+  const message = err.statusCode ? err.message : 'Internal server error';
+  res.status(status).json({ message });
 });
 
 const PORT = process.env.PORT || 4000;
