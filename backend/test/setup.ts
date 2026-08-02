@@ -1,4 +1,9 @@
-export const mockDb = {
+export const mockDb: any = {
+  $transaction: jest.fn(),
+  tenant: {
+    create: jest.fn(),
+    findUnique: jest.fn(),
+  },
   user: {
     findUnique: jest.fn(),
     create: jest.fn(),
@@ -19,8 +24,14 @@ export const mockDb = {
     findMany: jest.fn(),
     create: jest.fn(),
   },
+  auditLog: {
+    create: jest.fn().mockResolvedValue({}),
+  },
   // Add other models and methods as needed
 };
+
+// $transaction executes the callback with the mockDb itself as the tx
+mockDb.$transaction.mockImplementation(async (callback: any) => callback(mockDb));
 
 jest.mock('../src/db', () => ({
   db: mockDb,
@@ -29,4 +40,7 @@ jest.mock('../src/db', () => ({
 beforeEach(() => {
   // Reset mocks before each test
   jest.clearAllMocks();
+  // Re-establish default implementations after clearAllMocks
+  mockDb.$transaction.mockImplementation(async (callback: any) => callback(mockDb));
+  mockDb.auditLog.create.mockResolvedValue({});
 });

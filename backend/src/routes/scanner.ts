@@ -337,7 +337,11 @@ router.post('/nuclei', upload.single('file'), (req, res) => {
     res.status(400).json({ message: 'Invalid JSON file' });
     return;
   }
-  res.json(enforceFindingLimit(parseNucleiJson(data)));
+  try {
+    res.json(enforceFindingLimit(parseNucleiJson(data)));
+  } catch {
+    res.status(400).json({ message: 'Invalid JSON file' });
+  }
 });
 
 function parseQualysXml(xml: string): FindingInput[] {

@@ -15,9 +15,20 @@ function buildApp() {
 }
 
 function makeToken(userId: string) {
-  return jwt.sign({ id: userId, email: `${userId}@example.com` }, process.env.JWT_SECRET!, {
-    expiresIn: '1h', algorithm: 'HS256',
-  });
+  return jwt.sign(
+    { sub: userId, email: `${userId}@example.com`, tenant_id: 'tenant-1', roles: ['editor'] },
+    process.env.JWT_SECRET!,
+    { expiresIn: '1h', algorithm: 'HS256' },
+  );
+}
+
+function makeUser(userId: string) {
+  return {
+    id: userId,
+    email: `${userId}@example.com`,
+    tenantId: 'tenant-1',
+    roles: JSON.stringify(['editor']),
+  };
 }
 
 const validEngagement = {
@@ -33,8 +44,16 @@ const validEngagement = {
 describe('engagement authorization and user isolation', () => {
   const app = buildApp();
 
+  beforeEach(() => {
+    mockDb.user.findUnique.mockImplementation(async ({ where }) => {
+      if (where.id === 'user-a') return makeUser('user-a');
+      if (where.id === 'user-b') return makeUser('user-b');
+      return null;
+    });
+  });
+
   it('lists engagements using an authenticated-user scope', async () => {
-    mockDb.engagement.findMany.mockResolvedValueOnce([{ id: 'e1', userId: 'user-a' }]);
+    mockDb.engagement.findMany.mockResolvedValueOnce([{ id: 'e1', userId: 'user-a', tenantId: 'tenant-1' }]);
 
     const res = await request(app)
       .get('/api/engagements')
@@ -42,7 +61,7 @@ describe('engagement authorization and user isolation', () => {
 
     expect(res.status).toBe(200);
     expect(mockDb.engagement.findMany).toHaveBeenCalledWith({
-      where: { userId: 'user-a' }, orderBy: { createdAt: 'desc' },
+      where: { tenantId: 'tenant-1' }, orderBy: { createdAt: 'desc' },
     });
   });
 
@@ -55,7 +74,7 @@ describe('engagement authorization and user isolation', () => {
 
     expect(res).toMatchObject({ status: 404, body: { message: 'Not found' } });
     expect(mockDb.engagement.findFirst).toHaveBeenCalledWith({
-      where: { id: 'user-b-engagement', userId: 'user-a' }, include: { findings: true },
+      where: { id: 'user-b-engagement', tenantId: 'tenant-1' }, include: { findings: true },
     });
   });
 
@@ -71,7 +90,7 @@ describe('engagement authorization and user isolation', () => {
   });
 
   it('assigns new engagements to the authenticated user', async () => {
-    mockDb.engagement.create.mockResolvedValueOnce({ id: 'new-engagement', userId: 'user-a', ...validEngagement });
+    mockDb.engagement.create.mockResolvedValueOnce({ id: 'new-engagement', userId: 'user-a', tenantId: 'tenant-1', ...validEngagement });
 
     const res = await request(app)
       .post('/api/engagements')
@@ -80,7 +99,7 @@ describe('engagement authorization and user isolation', () => {
 
     expect(res.status).toBe(201);
     expect(mockDb.engagement.create).toHaveBeenCalledWith({
-      data: { ...validEngagement, language: 'en', userId: 'user-a' },
+      data: { ...validEngagement, language: 'en', userId: 'user-a', tenantId: 'tenant-1' },
     });
   });
 

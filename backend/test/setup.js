@@ -2,6 +2,11 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.mockDb = void 0;
 exports.mockDb = {
+    $transaction: jest.fn(),
+    tenant: {
+        create: jest.fn(),
+        findUnique: jest.fn(),
+    },
     user: {
         findUnique: jest.fn(),
         create: jest.fn(),
@@ -22,12 +27,16 @@ exports.mockDb = {
         findMany: jest.fn(),
         create: jest.fn(),
     },
-    // Add other models and methods as needed
+    auditLog: {
+        create: jest.fn().mockResolvedValue({}),
+    },
 };
+exports.mockDb.$transaction.mockImplementation(async (callback) => callback(exports.mockDb));
 jest.mock('../src/db', () => ({
     db: exports.mockDb,
 }));
 beforeEach(() => {
-    // Reset mocks before each test
     jest.clearAllMocks();
+    exports.mockDb.$transaction.mockImplementation(async (callback) => callback(exports.mockDb));
+    exports.mockDb.auditLog.create.mockResolvedValue({});
 });

@@ -27,18 +27,32 @@ describe('JWT authentication lifecycle', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('accepts a valid HS256 token and attaches its user claims', () => {
-    const token = jwt.sign({ id: 'user-123', email: 'test@example.com' }, process.env.JWT_SECRET!, {
-      expiresIn: '1h', algorithm: 'HS256',
+  it('accepts a valid HS256 token and attaches its user claims', async () => {
+    mockDb.user.findUnique.mockResolvedValueOnce({
+      id: 'user-123',
+      email: 'test@example.com',
+      tenantId: 'tenant-1',
+      roles: ['viewer'],
     });
+    const token = jwt.sign(
+      { sub: 'user-123', email: 'test@example.com', tenant_id: 'tenant-1', roles: ['viewer'] },
+      process.env.JWT_SECRET!,
+      { expiresIn: '1h', algorithm: 'HS256' },
+    );
     const req = { headers: { authorization: `Bearer ${token}` } } as AuthRequest;
     const res = makeResponse();
     const next = jest.fn();
 
-    requireAuth(req, res, next);
+    await requireAuth(req, res, next);
 
     expect(next).toHaveBeenCalledTimes(1);
-    expect(req.user).toEqual({ id: 'user-123', email: 'test@example.com' });
+    expect(req.user).toEqual({
+      id: 'user-123',
+      sub: 'user-123',
+      email: 'test@example.com',
+      tenantId: 'tenant-1',
+      roles: ['viewer'],
+    });
   });
 
   it('rejects an expired token', () => {
@@ -70,8 +84,16 @@ describe('JWT authentication lifecycle', () => {
 
   it('issues a verifiable one-day JWT when a user registers', async () => {
     mockDb.user.findUnique.mockResolvedValueOnce(null);
+    mockDb.tenant.create.mockResolvedValueOnce({ id: 'tenant-1', slug: 'tenant-abc', name: "New User's workspace" });
     mockDb.user.create.mockResolvedValueOnce({
-      id: 'new-user', email: 'new@example.com', name: 'New User', company: null,
+      id: 'new-user',
+      email: 'new@example.com',
+      name: 'New User',
+      company: null,
+      tenantId: 'tenant-1',
+      roles: JSON.stringify(['admin']),
+      authProvider: null,
+      password: 'hashed',
     });
     const app = express();
     app.use(express.json());
@@ -83,7 +105,7 @@ describe('JWT authentication lifecycle', () => {
 
     expect(res.status).toBe(201);
     const decoded = jwt.verify(res.body.token, process.env.JWT_SECRET!, { algorithms: ['HS256'] }) as jwt.JwtPayload;
-    expect(decoded).toMatchObject({ id: 'new-user', email: 'new@example.com' });
+    expect(decoded).toMatchObject({ sub: 'new-user', email: 'new@example.com' });
     expect(decoded.exp).toBeGreaterThan(decoded.iat!);
   });
 });

@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE nmaprun>
 <nmaprun scanner="nmap" args="nmap -sS -A -oX - 192.168.1.1" start="1672531200" startstr="Sun Jan  1 00:00:00 2023" version="7.91" xmloutputversion="1.05">
 <host starttime="1672531201" endtime="1672531205"><status state="up" reason="conn-refused" reason_ttl="0"/>
 <address addr="192.168.1.1" addrtype="ipv4"/>

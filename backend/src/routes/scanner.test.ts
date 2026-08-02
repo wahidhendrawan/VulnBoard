@@ -3,6 +3,7 @@ import path from 'path';
 import express from 'express';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
+import { mockDb } from '../../test/setup';
 
 process.env.JWT_SECRET = 'test-secret-key-for-jwt-testing';
 
@@ -13,17 +14,35 @@ const fixture = (name: string) =>
 
 function buildApp() {
   const app = express();
+  app.use(express.json());
   app.use('/api/scanner', scannerRouter);
+  app.use((err: Error & { statusCode?: number }, _req: any, res: any, _next: any) => {
+    const status = err.statusCode || 500;
+    const message = err.statusCode ? err.message : 'Internal server error';
+    res.status(status).json({ message });
+  });
   return app;
 }
 
-const token = jwt.sign({ id: 'user-a', email: 'a@test.com' }, process.env.JWT_SECRET!, {
-  expiresIn: '1h',
-  algorithm: 'HS256',
-});
+const testUser = {
+  id: 'user-a',
+  email: 'a@test.com',
+  tenantId: 'tenant-1',
+  roles: JSON.stringify(['editor']),
+};
+
+const token = jwt.sign(
+  { sub: 'user-a', email: 'a@test.com', tenant_id: 'tenant-1', roles: ['editor'] },
+  process.env.JWT_SECRET!,
+  { expiresIn: '1h', algorithm: 'HS256' },
+);
 
 describe('scanner import routes', () => {
   const app = buildApp();
+
+  beforeEach(() => {
+    mockDb.user.findUnique.mockResolvedValue(testUser);
+  });
 
   it('rejects uploads without a JWT', async () => {
     const res = await request(app)
@@ -58,7 +77,7 @@ describe('scanner import routes', () => {
       .attach('file', fixture('nmap-malformed.xml'), 'broken.xml');
 
     expect(missing).toMatchObject({ status: 400, body: { message: 'No file uploaded' } });
-    expect(malformed).toMatchObject({ status: 400, body: { message: 'Invalid Nmap XML file' } });
+    expect(malformed).toMatchObject({ status: 400, body: { message: 'Uploaded XML is malformed.' } });
   });
 
   it('imports Nuclei JSON findings and recognizes hyphenated matched-at output', async () => {
