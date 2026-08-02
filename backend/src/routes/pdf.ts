@@ -18,14 +18,17 @@ router.get('/:id/pdf', requireAuth, async (req: AuthRequest, res) => {
 
   const report = await db.report.findUnique({
     where: { id: req.params.id },
-    include: { engagement: { select: { userId: true } } },
+    include: { engagement: { select: { userId: true, tenantId: true } } },
   });
   if (!report) {
     res.status(404).json({ message: 'Report not found' });
     return;
   }
-  // Ownership check
-  if (report.engagement.userId !== req.user!.id) {
+  // Tenant membership + ownership check
+  if (
+    report.engagement.tenantId !== req.user!.tenantId ||
+    report.engagement.userId !== req.user!.id
+  ) {
     res.status(403).json({ message: 'Forbidden' });
     return;
   }
