@@ -27,7 +27,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
 
   const reportPayload = {
     ...engagementData,
-    findings: engagement.findings.map(f => ({
+    findings: engagement.findings.map((f: typeof engagement.findings[0]) => ({
       title: f.title,
       severity: f.severity as 'Critical' | 'High' | 'Medium' | 'Low',
       controlId: f.controlId ?? undefined,

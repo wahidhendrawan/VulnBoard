@@ -1,19 +1,93 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { XMLParser } from 'fast-xml-parser';
+import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { requireAuth } from '../middleware/auth';
 
+// Parser resource limits to prevent denial-of-service attacks.
+const MAX_FINDINGS_PER_REQUEST = 5000;
+const MAX_FILE_BYTES = 50 * 1024 * 1024;
+const ALLOWED_SCAN_EXTENSIONS = new Set(['.xml', '.json', '.csv', '.nessus', '.txt']);
+const ALLOWED_SCAN_MIME_TYPES = new Set([
+  'application/json',
+  'text/json',
+  'application/xml',
+  'text/xml',
+  'text/csv',
+  'application/csv',
+  'text/plain',
+  'application/octet-stream',
+]);
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_FILE_BYTES },
+  fileFilter: (_req, file, cb) => {
+    const ext = file.originalname.toLowerCase().slice(file.originalname.lastIndexOf('.'));
+    if (!ALLOWED_SCAN_EXTENSIONS.has(ext)) {
+      cb(scannerError(`Unsupported file extension: ${ext || '(none)'}`, 400));
+      return;
+    }
+    if (!ALLOWED_SCAN_MIME_TYPES.has(file.mimetype.toLowerCase())) {
+      cb(scannerError(`Unsupported file content type: ${file.mimetype || '(none)'}`, 400));
+      return;
+    }
+    cb(null, true);
+  },
+});
+
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 router.use(requireAuth);
 
-const xmlParser = new XMLParser({
+function scannerError(message: string, statusCode: number): Error & { statusCode: number } {
+  const error = new Error(message) as Error & { statusCode: number };
+  error.statusCode = statusCode;
+  return error;
+}
+
+function validateUploadedFile(file: Express.Multer.File, formats: Array<'xml' | 'json' | 'text'>): string {
+  if (file.size > MAX_FILE_BYTES) {
+    throw scannerError('Uploaded file exceeds the configured size limit.', 413);
+  }
+  const text = file.buffer.toString('utf8').replace(/^\uFEFF/, '');
+  const trimmed = text.trimStart();
+  if (text.includes('\u0000')) {
+    throw scannerError('Uploaded file contains invalid binary content.', 400);
+  }
+
+  const isXml = trimmed.startsWith('<');
+  const isJson = trimmed.startsWith('{') || trimmed.startsWith('[');
+  const isText = !isXml && !isJson;
+  if (!(isXml && formats.includes('xml')) && !(isJson && formats.includes('json')) && !(isText && formats.includes('text'))) {
+    throw scannerError('Uploaded file content does not match the expected scanner format.', 400);
+  }
+  if (isXml) {
+    if (/<!DOCTYPE|<!ENTITY/i.test(text)) {
+      throw scannerError('XML DTD and entity declarations are not allowed.', 400);
+    }
+    if (XMLValidator.validate(text) !== true) {
+      throw scannerError('Uploaded XML is malformed.', 400);
+    }
+  }
+  return text;
+}
+
+function enforceFindingLimit(findings: FindingInput[]): FindingInput[] {
+  if (findings.length > MAX_FINDINGS_PER_REQUEST) {
+    throw scannerError(`Finding count exceeds limit (${MAX_FINDINGS_PER_REQUEST}).`, 413);
+  }
+  return findings;
+}
+
+const XML_PARSER_OPTIONS = {
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
   allowBooleanAttributes: true,
   parseTagValue: false,
-});
+  processEntities: false, // Disable XXE: reject <!ENTITY and external entity references
+};
+
+const xmlParser = new XMLParser(XML_PARSER_OPTIONS);
 
 type FindingInput = {
   title: string;
@@ -125,9 +199,8 @@ router.post('/burp', upload.single('file'), (req, res) => {
     res.status(400).json({ message: 'No file uploaded' });
     return;
   }
-  const xml = req.file.buffer.toString('utf-8');
-  const findings = parseBurpXml(xml);
-  res.json(findings);
+  const xml = validateUploadedFile(req.file, ['xml']);
+  res.json(enforceFindingLimit(parseBurpXml(xml)));
 });
 
 router.post('/zap', upload.single('file'), (req, res) => {
@@ -137,13 +210,13 @@ router.post('/zap', upload.single('file'), (req, res) => {
   }
   let data: unknown;
   try {
-    data = JSON.parse(req.file.buffer.toString('utf-8'));
-  } catch {
+    data = JSON.parse(validateUploadedFile(req.file, ['json']));
+  } catch (error) {
+    if ((error as { statusCode?: number }).statusCode) throw error;
     res.status(400).json({ message: 'Invalid JSON file' });
     return;
   }
-  const findings = parseZapJson(data);
-  res.json(findings);
+  res.json(enforceFindingLimit(parseZapJson(data)));
 });
 
 router.post('/nmap', upload.single('file'), (req, res) => {
@@ -151,14 +224,13 @@ router.post('/nmap', upload.single('file'), (req, res) => {
     res.status(400).json({ message: 'No file uploaded' });
     return;
   }
-  const xml = req.file.buffer.toString('utf-8');
-  const findings = parseNmapXml(xml);
-  res.json(findings);
+  const xml = validateUploadedFile(req.file, ['xml']);
+  res.json(enforceFindingLimit(parseNmapXml(xml)));
 });
 
 function parseNessusV2(data: Record<string, unknown>): FindingInput[] {
   const findings: FindingInput[] = [];
-  const report = data?.Report;
+  const report = data?.Report as Record<string, unknown> | undefined;
   if (!report) return findings;
   const hosts = Array.isArray(report.ReportHost) ? report.ReportHost : report.ReportHost ? [report.ReportHost] : [];
   for (const host of hosts) {
@@ -190,14 +262,14 @@ router.post('/nessus', upload.single('file'), (req, res) => {
   }
   let data: unknown;
   try {
-    const text = req.file.buffer.toString('utf-8');
-    data = text.trim().startsWith('<') ? xmlParser.parse(text) : JSON.parse(text);
-  } catch {
+    const text = validateUploadedFile(req.file, ['xml', 'json']);
+    data = text.trimStart().startsWith('<') ? xmlParser.parse(text) : JSON.parse(text);
+  } catch (error) {
+    if ((error as { statusCode?: number }).statusCode) throw error;
     res.status(400).json({ message: 'Invalid Nessus file (expected .nessus XML or .json)' });
     return;
   }
-  const findings = parseNessusV2(data as Record<string, unknown>);
-  res.json(findings);
+  res.json(enforceFindingLimit(parseNessusV2(data as Record<string, unknown>)));
 });
 
 function parseNucleiJson(raw: unknown): FindingInput[] {
@@ -249,19 +321,20 @@ router.post('/nuclei', upload.single('file'), (req, res) => {
   }
   let data: unknown;
   try {
-    data = JSON.parse(req.file.buffer.toString('utf-8'));
-  } catch {
+    const text = validateUploadedFile(req.file, ['json']);
+    data = JSON.parse(text);
+  } catch (error) {
+    if ((error as { statusCode?: number }).statusCode) throw error;
     res.status(400).json({ message: 'Invalid JSON file' });
     return;
   }
-  const findings = parseNucleiJson(data);
-  res.json(findings);
+  res.json(enforceFindingLimit(parseNucleiJson(data)));
 });
 
 function parseQualysXml(xml: string): FindingInput[] {
   const findings: FindingInput[] = [];
   try {
-    const parser = new (require('fast-xml-parser').XMLParser)({ ignoreAttributes: false, attributeNamePrefix: '@_' });
+    const parser = new XMLParser(XML_PARSER_OPTIONS);
     const data = parser.parse(xml);
     const hosts = data?.Report?.ReportHost ?? [];
     const hostArr = Array.isArray(hosts) ? hosts : [hosts];
@@ -334,7 +407,6 @@ router.post('/csv', upload.single('file'), (req, res) => {
   const text = req.file.buffer.toString('utf-8');
   const findings = text.includes('</Report>') || text.includes('ReportHost') ? parseQualysXml(text) : parseCsvText(text);
   res.json(findings);
-});
 });
 
 export default router;
