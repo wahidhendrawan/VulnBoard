@@ -9,5 +9,6 @@
     "resolveJsonModule": true,
     "skipLibCheck": true
   },
-  "exclude": ["node_modules", "dist", "prisma.config.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "test", "dist", "node_modules", "jest.config.ts", "prisma.config.ts"]
 }

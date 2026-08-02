@@ -161,8 +161,15 @@ function parseZapJson(data: unknown): FindingInput[] {
 
 function parseNmapXml(xml: string): FindingInput[] {
   const findings: FindingInput[] = [];
+  const validation = XMLValidator.validate(xml);
+  if (validation !== true) {
+    throw new Error('Invalid Nmap XML file');
+  }
   try {
     const data = xmlParser.parse(xml);
+    if (!data?.nmaprun) {
+      throw new Error('Invalid Nmap XML file: missing nmaprun root');
+    }
     const hosts = data?.nmaprun?.host ?? [];
     const hostArr = Array.isArray(hosts) ? hosts : [hosts];
     for (const host of hostArr) {
@@ -188,8 +195,8 @@ function parseNmapXml(xml: string): FindingInput[] {
         }
       }
     }
-  } catch (err) {
-    console.error('Nmap XML parsing error:', err);
+  } catch {
+    throw new Error('Invalid Nmap XML file');
   }
   return findings;
 }
@@ -275,6 +282,7 @@ router.post('/nessus', upload.single('file'), (req, res) => {
 function parseNucleiJson(raw: unknown): FindingInput[] {
   const findings: FindingInput[] = [];
   const lines = Array.isArray(raw) ? raw : typeof raw === 'string' ? raw.trim().split('\n') : [];
+  if (lines.length === 0) throw new Error('Invalid Nuclei JSON');
   for (const line of lines) {
     if (typeof line !== 'string') {
       const entry = line as Record<string, unknown>;
@@ -286,10 +294,10 @@ function parseNucleiJson(raw: unknown): FindingInput[] {
         else if (sev === 'high') severity = 'High';
         else if (sev === 'medium') severity = 'Medium';
         findings.push({
-          title: String(info?.name ?? entry?.template ?? 'Untitled'),
+          title: String(info?.name ?? entry?.template ?? entry?.['template-id'] ?? 'Untitled'),
           severity,
           description: String(info?.description ?? '').trim() || undefined,
-          evidence: entry?.matched_at ? String(entry.matched_at) : entry?.host ? String(entry.host) : undefined,
+          evidence: String(entry?.['matched-at'] ?? entry?.matched_at ?? entry?.host ?? '').trim() || undefined,
         });
       }
       continue;
@@ -304,13 +312,14 @@ function parseNucleiJson(raw: unknown): FindingInput[] {
       else if (sev === 'high') severity = 'High';
       else if (sev === 'medium') severity = 'Medium';
       findings.push({
-        title: String(info?.name ?? entry?.template_id ?? 'Untitled'),
+        title: String(info?.name ?? entry?.template_id ?? entry?.['template-id'] ?? 'Untitled'),
         severity,
         description: String(info?.description ?? '').trim() || undefined,
-        evidence: entry?.matched_at ? String(entry.matched_at) : entry?.host ? String(entry.host) : undefined,
+        evidence: String(entry?.['matched-at'] ?? entry?.matched_at ?? entry?.host ?? '').trim() || undefined,
       });
     } catch { /* skip unparseable lines */ }
   }
+  if (findings.length === 0) throw new Error('Invalid Nuclei JSON: no valid entries');
   return findings;
 }
 
@@ -328,7 +337,11 @@ router.post('/nuclei', upload.single('file'), (req, res) => {
     res.status(400).json({ message: 'Invalid JSON file' });
     return;
   }
-  res.json(enforceFindingLimit(parseNucleiJson(data)));
+  try {
+    res.json(enforceFindingLimit(parseNucleiJson(data)));
+  } catch {
+    res.status(400).json({ message: 'Invalid JSON file' });
+  }
 });
 
 function parseQualysXml(xml: string): FindingInput[] {
