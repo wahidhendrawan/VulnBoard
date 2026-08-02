@@ -35,6 +35,15 @@ const upload = multer({
   },
 });
 
+// Multer errors (like file size limit) need to be mapped to HTTP status codes.
+function multerErrorHandler(err: any, _req: any, res: any, next: any) {
+  if (err && err.code === 'LIMIT_FILE_SIZE') {
+    res.status(413).json({ message: 'File too large' });
+    return;
+  }
+  next(err);
+}
+
 const router = Router();
 
 router.use(requireAuth);
@@ -237,7 +246,10 @@ router.post('/nmap', upload.single('file'), (req, res) => {
 
 function parseNessusV2(data: Record<string, unknown>): FindingInput[] {
   const findings: FindingInput[] = [];
-  const report = data?.Report as Record<string, unknown> | undefined;
+  // Standard .nessus exports wrap <Report> inside <NessusClientData_v2>;
+  // accept both the wrapped and top-level shapes.
+  const wrapper = data?.NessusClientData_v2 as Record<string, unknown> | undefined;
+  const report = (wrapper?.Report ?? data?.Report) as Record<string, unknown> | undefined;
   if (!report) return findings;
   const hosts = Array.isArray(report.ReportHost) ? report.ReportHost : report.ReportHost ? [report.ReportHost] : [];
   for (const host of hosts) {
@@ -251,7 +263,9 @@ function parseNessusV2(data: Record<string, unknown>): FindingInput[] {
       else if (risk.toLowerCase() === 'high') severity = 'High';
       else if (risk.toLowerCase() === 'medium') severity = 'Medium';
       findings.push({
-        title: String(i?.plugin_name ?? 'Untitled'),
+        // Standard Nessus v2 exports carry the name as the `pluginName`
+        // attribute; older/custom exports may use a `plugin_name` element.
+        title: String(i?.['@_pluginName'] ?? i?.plugin_name ?? i?.pluginName ?? 'Untitled'),
         severity,
         description: String(i?.description ?? '').trim() || undefined,
         recommendation: String(i?.solution ?? '').trim() || undefined,
@@ -421,5 +435,7 @@ router.post('/csv', upload.single('file'), (req, res) => {
   const findings = text.includes('</Report>') || text.includes('ReportHost') ? parseQualysXml(text) : parseCsvText(text);
   res.json(findings);
 });
+
+router.use(multerErrorHandler);
 
 export default router;

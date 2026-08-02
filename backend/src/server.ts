@@ -12,7 +12,7 @@ import pdfRouter from './routes/pdf';
 import scannerRouter from './routes/scanner';
 import findingTemplatesRouter from './routes/findingTemplates';
 
-const app = express();
+export const app = express();
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -82,7 +82,9 @@ app.use((err: Error & { statusCode?: number }, _req: Request, res: Response, _ne
   res.status(status).json({ message });
 });
 
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`VulnBoard backend running on port ${PORT}`);
-});
+if (require.main === module) {
+  const PORT = process.env.PORT || 4000;
+  app.listen(PORT, () => {
+    console.log(`VulnBoard backend running on port ${PORT}`);
+  });
+}
