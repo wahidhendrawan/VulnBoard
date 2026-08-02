@@ -1,0 +1,7 @@
+<?xml version="1.0" ?>
+<NessusClientData_v2>
+  <Report name="Broken Scan">
+    <ReportHost name="192.168.1.1">
+      <ReportItem port="443" svc_name="https"
+        <risk_factor>High</risk_factor>
+      </ReportItem>
