@@ -26,6 +26,15 @@ export type ReportRequest = {
   findings: FindingInput[];
 };
 
+function escapeMarkdownText(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function generateReport(payload: ReportRequest): { markdown: string } {
   const template = templates.find(t => t.id === payload.templateId);
   if (!template) throw new Error("Template not found");
@@ -34,9 +43,9 @@ export function generateReport(payload: ReportRequest): { markdown: string } {
   if (!framework) throw new Error("Framework not found");
 
   const criticalCount = payload.findings.filter(f => f.severity === "Critical").length;
-  const highCount     = payload.findings.filter(f => f.severity === "High").length;
-  const mediumCount   = payload.findings.filter(f => f.severity === "Medium").length;
-  const lowCount      = payload.findings.filter(f => f.severity === "Low").length;
+  const highCount = payload.findings.filter(f => f.severity === "High").length;
+  const mediumCount = payload.findings.filter(f => f.severity === "Medium").length;
+  const lowCount = payload.findings.filter(f => f.severity === "Low").length;
   const findingsCount = payload.findings.length;
 
   let overallRisk: "Low" | "Medium" | "High" = "Low";
@@ -49,17 +58,17 @@ export function generateReport(payload: ReportRequest): { markdown: string } {
   const findingsBlock = payload.findings.map((f, idx) => {
     const control = f.controlId ? framework.controls.find(c => c.id === f.controlId) : undefined;
     return `
-### ${idx + 1}. ${f.title} (${f.severity})
+### ${idx + 1}. ${escapeMarkdownText(f.title)} (${f.severity})
 
-- **${lang === "id" ? "Kontrol Terkait" : "Mapped Control"}:** ${f.controlId ?? "-"}${control ? ` – ${control.title}` : ""}
+- **${lang === "id" ? "Kontrol Terkait" : "Mapped Control"}:** ${escapeMarkdownText(f.controlId ?? "-")}${control ? ` – ${control.title}` : ""}
 - **${lang === "id" ? "Deskripsi" : "Description"}:**  
-  ${f.description ?? "-"}
+  ${escapeMarkdownText(f.description ?? "-")}
 - **${lang === "id" ? "Dampak" : "Impact"}:**  
-  ${f.impact ?? "-"}
+  ${escapeMarkdownText(f.impact ?? "-")}
 - **${lang === "id" ? "Bukti" : "Evidence"}:**  
-  ${f.evidence ?? "-"}
+  ${escapeMarkdownText(f.evidence ?? "-")}
 - **${lang === "id" ? "Rekomendasi" : "Recommendation"}:**  
-  ${f.recommendation ?? "-"}
+  ${escapeMarkdownText(f.recommendation ?? "-")}
 
 ---`;
   }).join("\n");
@@ -69,35 +78,35 @@ export function generateReport(payload: ReportRequest): { markdown: string } {
     : "1. Prioritize remediation of Critical and High severity findings (fix window 7–14 days).\n2. Schedule patching and configuration hardening based on risk.\n3. Perform re-testing after remediation to validate the fixes.";
 
   const logoHeader = payload.logoUrl
-    ? `![Logo](${payload.logoUrl})\n\n`
+    ? `![Logo](${escapeMarkdownText(payload.logoUrl)})\n\n`
     : "";
 
   const colorNote = payload.brandColor
-    ? `<!-- brand-color: ${payload.brandColor} -->\n`
+    ? `<!-- brand-color: ${escapeMarkdownText(payload.brandColor)} -->\n`
     : "";
 
   let markdown = colorNote + logoHeader + template.body;
 
   const replacements: Record<string, string> = {
-    "{{projectName}}":      payload.projectName,
-    "{{clientName}}":       payload.clientName,
-    "{{date}}":             date,
-    "{{frameworkName}}":    framework.name,
+    "{{projectName}}": escapeMarkdownText(payload.projectName),
+    "{{clientName}}": escapeMarkdownText(payload.clientName),
+    "{{date}}": escapeMarkdownText(date),
+    "{{frameworkName}}": framework.name,
     "{{frameworkVersion}}": framework.version ?? "",
-    "{{scope}}":            payload.scope,
-    "{{testingType}}":      payload.testingType,
-    "{{methodology}}":      payload.methodology,
-    "{{findingsCount}}":    findingsCount.toString(),
-    "{{criticalCount}}":    criticalCount.toString(),
-    "{{highCount}}":        highCount.toString(),
-    "{{mediumCount}}":      mediumCount.toString(),
-    "{{lowCount}}":         lowCount.toString(),
-    "{{overallRisk}}":      overallRisk,
+    "{{scope}}": escapeMarkdownText(payload.scope),
+    "{{testingType}}": escapeMarkdownText(payload.testingType),
+    "{{methodology}}": escapeMarkdownText(payload.methodology),
+    "{{findingsCount}}": findingsCount.toString(),
+    "{{criticalCount}}": criticalCount.toString(),
+    "{{highCount}}": highCount.toString(),
+    "{{mediumCount}}": mediumCount.toString(),
+    "{{lowCount}}": lowCount.toString(),
+    "{{overallRisk}}": overallRisk,
     "{{remediationRoadmap}}": remediationRoadmap,
     "{{executiveSummary}}": lang === "id"
       ? "Postur keamanan secara keseluruhan dan risiko utama dirangkum di sini."
       : "Overall security posture and key risks are summarized here.",
-    "{{gapSummary}}":       lang === "id"
+    "{{gapSummary}}": lang === "id"
       ? "Ringkasan kontrol yang tidak patuh dan prioritas remediasi."
       : "Summary of non-compliant controls and remediation priority.",
   };

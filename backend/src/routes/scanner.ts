@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { XMLParser } from 'fast-xml-parser';
+import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { requireAuth } from '../middleware/auth';
 
 const router = Router();
@@ -87,8 +87,15 @@ function parseZapJson(data: unknown): FindingInput[] {
 
 function parseNmapXml(xml: string): FindingInput[] {
   const findings: FindingInput[] = [];
+  const validation = XMLValidator.validate(xml);
+  if (validation !== true) {
+    throw new Error('Invalid Nmap XML file');
+  }
   try {
     const data = xmlParser.parse(xml);
+    if (!data?.nmaprun) {
+      throw new Error('Invalid Nmap XML file: missing nmaprun root');
+    }
     const hosts = data?.nmaprun?.host ?? [];
     const hostArr = Array.isArray(hosts) ? hosts : [hosts];
     for (const host of hostArr) {
@@ -114,8 +121,8 @@ function parseNmapXml(xml: string): FindingInput[] {
         }
       }
     }
-  } catch (err) {
-    console.error('Nmap XML parsing error:', err);
+  } catch {
+    throw new Error('Invalid Nmap XML file');
   }
   return findings;
 }
@@ -152,13 +159,17 @@ router.post('/nmap', upload.single('file'), (req, res) => {
     return;
   }
   const xml = req.file.buffer.toString('utf-8');
-  const findings = parseNmapXml(xml);
-  res.json(findings);
+  try {
+    const findings = parseNmapXml(xml);
+    res.json(findings);
+  } catch (err) {
+    res.status(400).json({ message: 'Invalid Nmap XML file' });
+  }
 });
 
 function parseNessusV2(data: Record<string, unknown>): FindingInput[] {
   const findings: FindingInput[] = [];
-  const report = data?.Report;
+  const report = data?.Report as Record<string, unknown> | undefined;
   if (!report) return findings;
   const hosts = Array.isArray(report.ReportHost) ? report.ReportHost : report.ReportHost ? [report.ReportHost] : [];
   for (const host of hosts) {
@@ -203,6 +214,7 @@ router.post('/nessus', upload.single('file'), (req, res) => {
 function parseNucleiJson(raw: unknown): FindingInput[] {
   const findings: FindingInput[] = [];
   const lines = Array.isArray(raw) ? raw : typeof raw === 'string' ? raw.trim().split('\n') : [];
+  if (lines.length === 0) throw new Error('Invalid Nuclei JSON');
   for (const line of lines) {
     if (typeof line !== 'string') {
       const entry = line as Record<string, unknown>;
@@ -214,10 +226,10 @@ function parseNucleiJson(raw: unknown): FindingInput[] {
         else if (sev === 'high') severity = 'High';
         else if (sev === 'medium') severity = 'Medium';
         findings.push({
-          title: String(info?.name ?? entry?.template ?? 'Untitled'),
+          title: String(info?.name ?? entry?.template ?? entry?.['template-id'] ?? 'Untitled'),
           severity,
           description: String(info?.description ?? '').trim() || undefined,
-          evidence: entry?.matched_at ? String(entry.matched_at) : entry?.host ? String(entry.host) : undefined,
+          evidence: String(entry?.['matched-at'] ?? entry?.matched_at ?? entry?.host ?? '').trim() || undefined,
         });
       }
       continue;
@@ -232,13 +244,14 @@ function parseNucleiJson(raw: unknown): FindingInput[] {
       else if (sev === 'high') severity = 'High';
       else if (sev === 'medium') severity = 'Medium';
       findings.push({
-        title: String(info?.name ?? entry?.template_id ?? 'Untitled'),
+        title: String(info?.name ?? entry?.template_id ?? entry?.['template-id'] ?? 'Untitled'),
         severity,
         description: String(info?.description ?? '').trim() || undefined,
-        evidence: entry?.matched_at ? String(entry.matched_at) : entry?.host ? String(entry.host) : undefined,
+        evidence: String(entry?.['matched-at'] ?? entry?.matched_at ?? entry?.host ?? '').trim() || undefined,
       });
     } catch { /* skip unparseable lines */ }
   }
+  if (findings.length === 0) throw new Error('Invalid Nuclei JSON: no valid entries');
   return findings;
 }
 
@@ -250,12 +263,11 @@ router.post('/nuclei', upload.single('file'), (req, res) => {
   let data: unknown;
   try {
     data = JSON.parse(req.file.buffer.toString('utf-8'));
+    const findings = parseNucleiJson(data);
+    res.json(findings);
   } catch {
     res.status(400).json({ message: 'Invalid JSON file' });
-    return;
   }
-  const findings = parseNucleiJson(data);
-  res.json(findings);
 });
 
 function parseQualysXml(xml: string): FindingInput[] {
@@ -334,7 +346,6 @@ router.post('/csv', upload.single('file'), (req, res) => {
   const text = req.file.buffer.toString('utf-8');
   const findings = text.includes('</Report>') || text.includes('ReportHost') ? parseQualysXml(text) : parseCsvText(text);
   res.json(findings);
-});
 });
 
 export default router;
