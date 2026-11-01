@@ -11,8 +11,11 @@ import engagementsRouter from './routes/engagements';
 import pdfRouter from './routes/pdf';
 import scannerRouter from './routes/scanner';
 import findingTemplatesRouter from './routes/findingTemplates';
+import { assertJwtSecret } from './middleware/auth';
 
 export const app = express();
+// Exactly one proxy hop (the frontend nginx) so rate limits key on the real client IP.
+app.set('trust proxy', 1);
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -83,6 +86,7 @@ app.use((err: Error & { statusCode?: number }, _req: Request, res: Response, _ne
 });
 
 if (require.main === module) {
+  assertJwtSecret();
   const PORT = process.env.PORT || 4000;
   app.listen(PORT, () => {
     console.log(`VulnBoard backend running on port ${PORT}`);

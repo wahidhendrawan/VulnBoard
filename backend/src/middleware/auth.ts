@@ -23,9 +23,21 @@ type TokenPayload = jwt.JwtPayload & {
   roles?: unknown;
 };
 
+const MIN_JWT_SECRET_LENGTH = 32;
+// Matches the placeholders that shipped in .env.example and docker-compose.yml.
+const PLACEHOLDER_JWT_SECRET = /change-?me/i;
+
 function getJwtSecret(): string | undefined {
   const secret = process.env.JWT_SECRET?.trim();
-  return secret || undefined;
+  if (!secret || secret.length < MIN_JWT_SECRET_LENGTH || PLACEHOLDER_JWT_SECRET.test(secret)) return undefined;
+  return secret;
+}
+
+/** Startup guard: refuse to run with a missing, short or published placeholder secret. */
+export function assertJwtSecret(): void {
+  if (!getJwtSecret()) {
+    throw new Error(`JWT_SECRET must be a random value of at least ${MIN_JWT_SECRET_LENGTH} characters (e.g. openssl rand -hex 32), not a placeholder`);
+  }
 }
 
 export function issueAccessToken(user: {

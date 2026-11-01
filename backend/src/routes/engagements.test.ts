@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { mockDb } from '../../test/setup';
 
-process.env.JWT_SECRET = 'test-secret-key-for-jwt-testing';
+process.env.JWT_SECRET = 'test-secret-key-for-jwt-testing-0123456789';
 
 import engagementsRouter from '../routes/engagements';
 
