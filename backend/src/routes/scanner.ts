@@ -431,9 +431,9 @@ router.post('/csv', upload.single('file'), (req, res) => {
     res.status(400).json({ message: 'No file uploaded' });
     return;
   }
-  const text = req.file.buffer.toString('utf-8');
-  const findings = text.includes('</Report>') || text.includes('ReportHost') ? parseQualysXml(text) : parseCsvText(text);
-  res.json(findings);
+  const text = validateUploadedFile(req.file, ['xml', 'text']);
+  const findings = text.trimStart().startsWith('<') ? parseQualysXml(text) : parseCsvText(text);
+  res.json(enforceFindingLimit(findings));
 });
 
 router.use(multerErrorHandler);

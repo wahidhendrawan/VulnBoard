@@ -9,8 +9,10 @@ updates:
     groups:
       production:
         dependency-type: production
+        update-types: [minor, patch]
       development:
         dependency-type: development
+        update-types: [minor, patch]
 
   - package-ecosystem: npm
     directory: /backend
@@ -18,14 +20,23 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    # Majors arrive as separate PRs: grouping them (typescript 7, express 5, zod 4, prisma 7)
+    # broke npm ci for the whole group.
     groups:
       production:
         dependency-type: production
+        update-types: [minor, patch]
       development:
         dependency-type: development
+        update-types: [minor, patch]
 
   - package-ecosystem: docker
-    directory: /
+    directory: /backend
+    schedule:
+      interval: monthly
+
+  - package-ecosystem: docker
+    directory: /frontend
     schedule:
       interval: monthly
 

@@ -1,10 +1,9 @@
-[![CI](https://github.com/wahidhendrawan/VulnBoard/actions/workflows/ci.yml/badge.svg)](https://github.com/wahidhendrawan/VulnBoard/actions/workflows/ci.yml)
-
 # VulnBoard – Professional VAPT Report & Engagement Dashboard
 
-[![License: GPL-3.0](https://img.shields.io/badge/License-GPL-3.0-blue.svg)](https://github.com/wahidhendrawan/VulnBoard/blob/main/LICENSE)
-[![Release](https://img.shields.io/badge/release-v1.0.0-green.svg)](https://github.com/wahidhendrawan/VulnBoard/releases)
-[![CI](https://github.com/wahidhendrawan/VulnBoard/actions/workflows/ci.yml/badge.svg)](https://github.com/wahidhendrawan/VulnBoard/actions)
+[![CI](https://github.com/wahidhendrawan/VulnBoard/actions/workflows/ci.yml/badge.svg)](https://github.com/wahidhendrawan/VulnBoard/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/wahidhendrawan/VulnBoard?sort=semver)](https://github.com/wahidhendrawan/VulnBoard/releases/latest)
+[![License](https://img.shields.io/github/license/wahidhendrawan/VulnBoard)](LICENSE)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/wahidhendrawan/VulnBoard/badge)](https://scorecard.dev/viewer/?uri=github.com/wahidhendrawan/VulnBoard)
 [![Pages](https://img.shields.io/badge/docs-🌐-orange.svg)](https://wahidhendrawan.github.io/VulnBoard/)
 
 A self-hosted vulnerability management platform for VAPT consultants. Generate professional reports across multiple security frameworks, manage engagements, import scanner results, and export ready-to-deliver PDFs — all with authentication and persistent storage.
@@ -32,13 +31,18 @@ A self-hosted vulnerability management platform for VAPT consultants. Generate p
 
 ```bash
 cp .env.example .env
-# Edit .env — set a strong JWT_SECRET
+# Edit .env — set JWT_SECRET, e.g. `openssl rand -hex 32` (compose and the backend refuse to start without a 32+ char secret)
 
 docker compose up -d
 ```
 
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:4000
+- Frontend: http://localhost:5173 (the browser reaches the API through nginx at `/api`)
+- Backend API: http://localhost:4000 (bound to 127.0.0.1 only)
+
+**Upgrading from an image that ran as root:** the backend now runs as the `node` user, so existing volumes need a one-time ownership fix:
+```bash
+docker compose run --rm --user root backend chown -R node:node /app/data
+```
 
 **Seed demo data (optional):**
 ```bash
@@ -98,10 +102,6 @@ VulnBoard/
 │       │   └── templates.ts
 │       ├── services/
 │       │   └── reportGenerator.ts  # Markdown generation engine
-│       ├── parsers/
-│       │   ├── burp.ts      # Burp Suite XML parser
-│       │   ├── zap.ts       # OWASP ZAP JSON parser
-│       │   └── nmap.ts      # Nmap XML parser
 │       ├── data/
 │       │   ├── frameworks.ts      # 5 frameworks, 67+ controls
 │       │   ├── templates.ts       # 8 report templates (EN + ID)
@@ -160,19 +160,27 @@ VulnBoard/
 
 | Variable | Default | Description |
 |---|---|---|
-| `JWT_SECRET` | `change-me` | **Change in production** — JWT signing key |
+| `JWT_SECRET` | — (required) | JWT signing key, 32+ random chars (`openssl rand -hex 32`); placeholders are refused |
 | `DATABASE_URL` | `file:/app/data/vulnboard.db` | Prisma SQLite path |
 | `ALLOWED_ORIGIN` | `http://localhost:5173` | CORS allowed origin |
 | `PORT` | `4000` | Backend port |
-| `VITE_API_BASE` | `http://localhost:4000/api` | Frontend API base (build-time) |
+| `VITE_API_BASE` | `/api` | Frontend API base (build-time); `/api` goes through the nginx proxy |
 
 ---
 
 ## Tech Stack
 
-- **Backend**: Node.js 20 · Express · TypeScript · Prisma ORM · SQLite
+- **Backend**: Node.js 24 · Express · TypeScript · Prisma ORM · SQLite
 - **Auth**: JWT (`jsonwebtoken`) + bcryptjs
 - **Validation**: Zod
 - **PDF**: Puppeteer (Chromium headless, pre-installed in Docker)
 - **Frontend**: React 18 · Vite · TypeScript · react-router-dom · axios
-- **Containerization**: Docker Compose · nginx (frontend) · node:20-slim (backend)
+- **Containerization**: Docker Compose · nginx-unprivileged (frontend) · node:24-slim (backend), both non-root
+
+## Security
+
+Please report vulnerabilities privately as described in [SECURITY.md](SECURITY.md), not in a public issue.
+
+## License
+
+GPL-3.0. See [LICENSE](LICENSE).

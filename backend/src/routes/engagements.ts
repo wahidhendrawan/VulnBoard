@@ -31,7 +31,7 @@ router.get('/', async (req: AuthRequest, res) => {
 router.post('/', requireRole('editor'), async (req: AuthRequest, res) => {
   const parsed = EngagementSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ message: parsed.error.errors[0].message });
+    res.status(400).json({ message: parsed.error.issues[0].message });
     return;
   }
 

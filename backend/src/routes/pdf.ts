@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import puppeteer from 'puppeteer';
 import { marked } from 'marked';
 import { db } from '../db';
 import { requireAuth, AuthRequest } from '../middleware/auth';
@@ -47,7 +46,12 @@ router.get('/:id/pdf', requireAuth, async (req: AuthRequest, res) => {
 <style>body{font-family:sans-serif;padding:40px;max-width:900px;margin:auto}</style>
 </head><body>${await marked.parse(report.markdown, { async: false })}</body></html>`;
 
+  // puppeteer is ESM-only; load it on first use (Node's require(esm)) so CommonJS consumers like Jest never parse it.
+  const { default: puppeteer } = await import('puppeteer');
   const browser = await puppeteer.launch({
+    // Docker's default seccomp/capabilities block both the userns and the setuid (chromium-sandbox)
+    // sandbox, so Chromium cannot start without --no-sandbox; it runs as the non-root `node` user with
+    // all network requests blocked below.
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
   });

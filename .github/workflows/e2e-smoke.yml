@@ -26,14 +26,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Prepare environment
         run: |
           if [ -f .env.example ]; then
             cp .env.example .env
           fi
-          echo "JWT_SECRET=ci-smoke-test-secret-not-for-prod" >> .env
+          echo "JWT_SECRET=$(openssl rand -hex 32)" >> .env
 
       - name: Build and start stack
         run: docker compose up -d --build
@@ -72,6 +72,9 @@ jobs:
           echo "=== Frameworks endpoint (unauthenticated) ==="
           curl -fsS http://localhost:4000/api/frameworks | head -c 200
           echo ""
+          echo "=== Frameworks through the nginx /api proxy ==="
+          curl -fsS http://localhost:5173/api/frameworks | head -c 200
+          echo ""
 
       - name: Smoke check - authentication flow
         run: |
@@ -95,6 +98,14 @@ jobs:
           echo "=== Authenticated engagements list ==="
           curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:4000/api/engagements | head -c 200
           echo ""
+          echo "=== Generate a report and render it to PDF (Chromium) ==="
+          REPORT_ID=$(curl -fsS -X POST http://localhost:4000/api/reports \
+            -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+            -d '{"clientName":"Smoke","projectName":"Smoke","scope":"app","testingType":"Black box","methodology":"OWASP","frameworkId":"owasp_top10_2021","templateId":"owasp_executive_en","findings":[{"title":"SQL Injection","severity":"High"}]}' \
+            | grep -oE '"id":"[^"]+"' | head -1 | cut -d'"' -f4)
+          curl -fsS -o report.pdf -H "Authorization: Bearer $TOKEN" "http://localhost:4000/api/reports/$REPORT_ID/pdf"
+          head -c 5 report.pdf | grep -q '%PDF-' || { echo "::error::PDF export failed"; exit 1; }
+          echo "PDF OK ($(wc -c < report.pdf) bytes)"
 
       - name: Dump logs on failure
         if: failure()

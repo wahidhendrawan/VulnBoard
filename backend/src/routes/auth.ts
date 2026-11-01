@@ -52,7 +52,7 @@ function tenantSlug(): string {
 router.post('/register', async (req: Request, res: Response) => {
   const parsed = RegisterSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ message: parsed.error.errors[0].message });
+    res.status(400).json({ message: parsed.error.issues[0].message });
     return;
   }
 
@@ -117,7 +117,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
   const parsed = LoginSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ message: parsed.error.errors[0].message });
+    res.status(400).json({ message: parsed.error.issues[0].message });
     return;
   }
 

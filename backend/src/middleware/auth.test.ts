@@ -2,10 +2,38 @@ import express, { Response } from 'express';
 import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { mockDb } from '../../test/setup';
-import { requireAuth, AuthRequest } from '../middleware/auth';
+import { assertJwtSecret, requireAuth, AuthRequest } from '../middleware/auth';
 import authRouter from '../routes/auth';
 
-process.env.JWT_SECRET = 'test-secret-key-for-jwt-testing';
+process.env.JWT_SECRET = 'test-secret-key-for-jwt-testing-0123456789';
+
+describe('JWT secret strength', () => {
+  const original = process.env.JWT_SECRET;
+  afterEach(() => { process.env.JWT_SECRET = original; });
+
+  it.each([
+    ['missing', ''],
+    ['the old compose default', 'change-me-in-production'],
+    ['the old .env.example value', 'change-me-in-production-use-64-chars'],
+    ['shorter than 32 characters', 'a'.repeat(31)],
+  ])('refuses to start and rejects tokens when the secret is %s', async (_label, secret) => {
+    process.env.JWT_SECRET = secret;
+    expect(() => assertJwtSecret()).toThrow(/JWT_SECRET/);
+
+    // A token forged with the published placeholder must not authenticate either.
+    const token = jwt.sign({ sub: 'user-123' }, secret || 'x', { algorithm: 'HS256' });
+    const res = makeResponse();
+    const next = jest.fn();
+    await requireAuth({ headers: { authorization: `Bearer ${token}` } } as AuthRequest, res, next);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('accepts a random secret of 32+ characters', () => {
+    process.env.JWT_SECRET = 'f'.repeat(64);
+    expect(() => assertJwtSecret()).not.toThrow();
+  });
+});
 
 function makeResponse() {
   return {

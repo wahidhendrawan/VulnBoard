@@ -10,7 +10,7 @@ const router = Router();
 router.post('/', requireAuth, requireRole('editor'), async (req: AuthRequest, res) => {
   const parsed = ReportRequestSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ message: parsed.error.errors[0].message });
+    res.status(400).json({ message: parsed.error.issues[0].message });
     return;
   }
 

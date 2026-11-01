@@ -8,7 +8,7 @@ import { app as productionApp } from '../server';
 import authRouter from './auth';
 import scannerRouter from './scanner';
 
-process.env.JWT_SECRET = 'test-secret-key-for-jwt-testing';
+process.env.JWT_SECRET = 'test-secret-key-for-jwt-testing-0123456789';
 
 const fixture = (name: string) =>
   fs.readFileSync(path.join(__dirname, '../../test/fixtures', name));
@@ -159,6 +159,23 @@ describe('scanner import and input-security baseline', () => {
 
     expect(res).toMatchObject({ status: 413, body: { message: 'File too large' } });
   });
+
+  it('applies the same upload validation and finding limit to CSV/Qualys imports', async () => {
+    const csv = (body: string) => request(app)
+      .post('/api/scanner/csv')
+      .set('Authorization', `Bearer ${token}`)
+      .attach('file', Buffer.from(body), { filename: 'scan.csv', contentType: 'text/csv' });
+    const xxe = await request(app)
+      .post('/api/scanner/csv')
+      .set('Authorization', `Bearer ${token}`)
+      .attach('file', fixture('xxe-attack.xml'), 'qualys.xml');
+    const tooMany = await csv(`title,severity\n${'Finding,High\n'.repeat(5001)}`);
+    const valid = await csv('title,severity\nWeak TLS,High\n');
+
+    expect(xxe).toMatchObject({ status: 400, body: { message: 'XML DTD and entity declarations are not allowed.' } });
+    expect(tooMany).toMatchObject({ status: 413, body: { message: 'Finding count exceeds limit (5000).' } });
+    expect(valid).toMatchObject({ status: 200, body: [{ title: 'Weak TLS', severity: 'High' }] });
+  });
 });
 
 describe('HTTP security baseline', () => {
@@ -192,5 +209,22 @@ describe('HTTP security baseline', () => {
       status: 429,
       body: { message: 'Too many login attempts. Try again later.' },
     });
+  });
+
+  it('keys the login limit on the client behind the nginx hop, not the proxy address', async () => {
+    mockDb.user.findUnique.mockResolvedValue(null);
+    const login = (forwardedFor: string) => request(productionApp)
+      .post('/api/auth/login')
+      .set('X-Forwarded-For', forwardedFor)
+      .send({ email: 'proxy-rate-limit@example.test', password: 'wrong-password' });
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      expect((await login('203.0.113.10')).status).toBe(401);
+    }
+
+    expect((await login('203.0.113.10')).status).toBe(429);
+    expect((await login('203.0.113.20')).status).toBe(401);
+    // Only the hop nginx appended is trusted; a client-supplied left-most entry is ignored.
+    expect((await login('203.0.113.20, 203.0.113.10')).status).toBe(429);
   });
 });
